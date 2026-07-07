@@ -195,7 +195,7 @@ export default function SignupPage() {
         const firstName = nameParts[0] || 'Parent';
         const lastInitial = nameParts.length > 1 ? nameParts[nameParts.length - 1][0].toUpperCase() : '';
 
-        const { error: profileError } = await supabase.from('profiles').insert({
+        const profilePayload = {
           id: userId,
           first_name: firstName,
           last_initial: lastInitial,
@@ -210,7 +210,9 @@ export default function SignupPage() {
           due_date: dueDate,
           lat,
           lng,
-        });
+        };
+        console.log('[signup] profile insert payload:', profilePayload);
+        const { error: profileError } = await supabase.from('profiles').insert(profilePayload);
         if (profileError) throw profileError;
 
         // Insert each child as a separate row in the children table
