@@ -180,9 +180,12 @@ export default function SignupPage() {
 
         const profilePayload = {
           id: userId,
+          name: form.name || 'New Parent',
           first_name: firstName,
           last_initial: lastInitial,
+          postcode: form.postcode,
           postcode_district: form.postcode.split(' ')[0],
+          interests: selectedInterests,
           parent_type: form.parentStage || 'parent',
           due_date: dueDate,
           bio: '',

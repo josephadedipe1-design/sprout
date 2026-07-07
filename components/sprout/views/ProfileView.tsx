@@ -100,8 +100,8 @@ export default function ProfileView({ onEditProfile, onSettings }: ProfileViewPr
     loadActivity();
   }, [user]);
 
-  const displayName = profile?.name || 'You';
-  const location = [profile?.neighborhood, profile?.city].filter(Boolean).join(', ') || 'Location not set';
+  const displayName = profile?.name || (profile?.first_name ? `${profile.first_name}${profile.last_initial ? ' ' + profile.last_initial + '.' : ''}` : 'You');
+  const location = profile?.postcode_district || [profile?.neighborhood, profile?.city].filter(Boolean).join(', ') || 'Location not set';
   const bio = profile?.bio || 'No bio yet.';
   const interests = profile?.interests ?? [];
   const avatarUrl = profile?.avatar_url || '';
