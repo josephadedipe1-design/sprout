@@ -125,6 +125,18 @@ export default function SignupPage() {
         });
         if (signUpError) throw signUpError;
         if (!authData.user) throw new Error('Sign up failed. Please try again.');
+
+        // signUp returns no session when email confirmation is enabled.
+        // Sign in explicitly to establish a session so auth.uid() is set
+        // for the profile insert that follows.
+        if (!authData.session) {
+          const { error: signInError } = await supabase.auth.signInWithPassword({
+            email: form.email,
+            password: form.password,
+          });
+          if (signInError) throw new Error('Account created but sign-in failed. Please sign in manually.');
+        }
+
         const userId = authData.user.id;
 
         const dueDate = showDue && dueMonth
