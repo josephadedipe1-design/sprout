@@ -79,6 +79,7 @@ export default function SignupPage() {
     /[0-9]/.test(form.password) &&
     /[^a-zA-Z0-9]/.test(form.password);
   const step1Complete = form.name.trim() !== '' && form.email.trim() !== '' && passwordValid;
+  const step3Complete = form.postcode.trim() !== '';
 
   function setChildAge(index: number, age: string) {
     setChildren(prev => { const n = [...prev]; n[index] = age; return n; });
@@ -119,6 +120,13 @@ export default function SignupPage() {
       setSubmitting(true);
       setError('');
       try {
+        // Postcode is required — it drives the generated postcode_district column.
+        if (!form.postcode.trim()) {
+          setStep(3);
+          setError('Please enter your postcode before continuing.');
+          return;
+        }
+
         const { data: authData, error: signUpError } = await supabase.auth.signUp({
           email: form.email,
           password: form.password,
@@ -439,6 +447,11 @@ export default function SignupPage() {
           {/* ── Step 3: Location ── */}
           {step === 3 && (
             <div className="space-y-4">
+              {error && (
+                <div className="p-3 rounded-xl text-sm font-medium" style={{ background: '#FEF2F2', color: '#991B1B', border: '1px solid #FECACA' }}>
+                  {error}
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-semibold mb-1" style={{ color: '#4a3328' }}>Where are you based?</label>
                 <p className="text-xs mb-3 leading-relaxed" style={{ color: '#9a8070' }}>
@@ -448,7 +461,7 @@ export default function SignupPage() {
                   className="input-sprout"
                   placeholder="Enter your postcode (e.g. SW1A 1AA)"
                   value={form.postcode}
-                  onChange={e => setForm(f => ({ ...f, postcode: e.target.value }))}
+                  onChange={e => { setForm(f => ({ ...f, postcode: e.target.value })); setError(''); }}
                 />
               </div>
               <div
@@ -623,8 +636,8 @@ export default function SignupPage() {
           <button
             onClick={handleNext}
             className="btn-brand gap-2"
-            disabled={submitting || (step === 1 && !step1Complete)}
-            style={{ opacity: submitting || (step === 1 && !step1Complete) ? 0.45 : 1 }}
+            disabled={submitting || (step === 1 && !step1Complete) || (step === 3 && !step3Complete)}
+            style={{ opacity: submitting || (step === 1 && !step1Complete) || (step === 3 && !step3Complete) ? 0.45 : 1 }}
           >
             {submitting ? 'Creating account…' : step === STEPS.length ? 'Get started' : 'Continue'}
             {!submitting && step < STEPS.length && <ArrowRight className="w-4 h-4" />}
