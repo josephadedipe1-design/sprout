@@ -127,7 +127,9 @@ export default function SignupPage() {
         if (!authData.user) throw new Error('Sign up failed. Please try again.');
         const userId = authData.user.id;
 
-        const dueDate = showDue && dueMonth ? `${dueMonth} ${dueYear}` : null;
+        const dueDate = showDue && dueMonth
+          ? `${dueYear}-${String(MONTHS.indexOf(dueMonth) + 1).padStart(2, '0')}-01`
+          : null;
 
         // Upload avatar if user selected one
         let avatarUrl = '';
