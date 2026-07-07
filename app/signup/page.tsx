@@ -126,19 +126,22 @@ export default function SignupPage() {
         if (signUpError) throw signUpError;
         if (!authData.user) throw new Error('Sign up failed. Please try again.');
 
-        // Use getUser() as the authoritative check for an active session.
-        // signUp returns a null session when email confirmation is enabled,
-        // in which case auth.uid() would be null and the profile insert
-        // would violate RLS. Skip the insert entirely in that case.
-        const { data: { user: sessionUser } } = await supabase.auth.getUser();
-        if (!sessionUser) {
-          // Email confirmation required — advance to the final step without
-          // inserting the profile. The profile will be created on first login.
+        // Confirm a valid session exists before any authenticated DB write.
+        // supabase.auth.getUser() validates the JWT with the server — this is
+        // the only reliable way to confirm auth.uid() will be set when the
+        // profiles INSERT runs. signUp returns session: null when email
+        // confirmation is enabled, which would leave auth.uid() as null and
+        // violate the RLS policy (WITH CHECK (auth.uid() = id)).
+        const { data: { user }, error: getUserError } = await supabase.auth.getUser();
+        if (getUserError || !user) {
+          // No confirmed session (email confirmation likely required).
+          // Do not attempt the INSERT — advance to the final step instead.
           setStep(s => s + 1);
           return;
         }
 
-        const userId = sessionUser.id;
+        // Use the server-confirmed user ID so it always matches auth.uid().
+        const userId = user.id;
 
         const dueDate = showDue && dueMonth
           ? `${dueYear}-${String(MONTHS.indexOf(dueMonth) + 1).padStart(2, '0')}-01`
