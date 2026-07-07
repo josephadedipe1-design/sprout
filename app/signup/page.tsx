@@ -126,18 +126,19 @@ export default function SignupPage() {
         if (signUpError) throw signUpError;
         if (!authData.user) throw new Error('Sign up failed. Please try again.');
 
-        // signUp returns no session when email confirmation is enabled.
-        // Sign in explicitly to establish a session so auth.uid() is set
-        // for the profile insert that follows.
-        if (!authData.session) {
-          const { error: signInError } = await supabase.auth.signInWithPassword({
-            email: form.email,
-            password: form.password,
-          });
-          if (signInError) throw new Error('Account created but sign-in failed. Please sign in manually.');
+        // Use getUser() as the authoritative check for an active session.
+        // signUp returns a null session when email confirmation is enabled,
+        // in which case auth.uid() would be null and the profile insert
+        // would violate RLS. Skip the insert entirely in that case.
+        const { data: { user: sessionUser } } = await supabase.auth.getUser();
+        if (!sessionUser) {
+          // Email confirmation required — advance to the final step without
+          // inserting the profile. The profile will be created on first login.
+          setStep(s => s + 1);
+          return;
         }
 
-        const userId = authData.user.id;
+        const userId = sessionUser.id;
 
         const dueDate = showDue && dueMonth
           ? `${dueYear}-${String(MONTHS.indexOf(dueMonth) + 1).padStart(2, '0')}-01`
