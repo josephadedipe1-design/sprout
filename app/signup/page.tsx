@@ -183,8 +183,14 @@ export default function SignupPage() {
           } catch { /* non-fatal — fall back to postcode district */ }
         }
 
+        const nameParts = (form.name || '').trim().split(/\s+/);
+        const firstName = nameParts[0] || 'Parent';
+        const lastInitial = nameParts.length > 1 ? nameParts[nameParts.length - 1][0].toUpperCase() : '';
+
         const { error: profileError } = await supabase.from('profiles').insert({
           id: userId,
+          first_name: firstName,
+          last_initial: lastInitial,
           name: form.name || 'New Parent',
           bio: '',
           neighborhood,

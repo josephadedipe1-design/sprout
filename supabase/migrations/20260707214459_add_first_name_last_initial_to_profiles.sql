@@ -1,0 +1,3 @@
+ALTER TABLE profiles
+  ADD COLUMN IF NOT EXISTS first_name text NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS last_initial text NOT NULL DEFAULT '';
