@@ -67,7 +67,7 @@ export default function WelcomeView({ onDone, onGoToMatching }: WelcomeViewProps
     loadNearby();
   }, [loadNearby]);
 
-  const firstName = profile?.name?.split(' ')[0] || 'there';
+  const firstName = profile?.first_name || 'there';
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-10" style={{ background: 'var(--bg)' }}>

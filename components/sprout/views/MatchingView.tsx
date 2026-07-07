@@ -139,7 +139,7 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
 
     const excludeArr = Array.from(excludeIds);
     let query = supabase.from('profiles').select('*').not('id', 'in', `(${excludeArr.join(',')})`).limit(30);
-    if (stageFilter) query = query.eq('parent_stage', stageFilter === 'expecting' ? 'expecting' : stageFilter);
+    if (stageFilter) query = query.eq('parent_type', stageFilter === 'expecting' ? 'expecting' : stageFilter);
 
     const { data } = await query;
     const enriched = await enrichProfilesWithChildren((data ?? []) as DbProfile[]);
@@ -216,7 +216,7 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
       distanceMiles: (myProfile?.lat && myProfile?.lng && p.lat && p.lng)
         ? Math.round(haversineKm(myProfile.lat, myProfile.lng, p.lat, p.lng) * 0.621371 * 10) / 10
         : 0,
-      expecting: p.parent_stage === 'expecting' || p.parent_stage === 'both',
+      expecting: p.parent_type === 'expecting' || p.parent_type === 'both',
       userId: p.id,
     };
   }
@@ -504,12 +504,12 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
                         <h2 className="text-lg font-bold leading-tight" style={{ color: '#2a1f18' }}>{current.name}</h2>
-                        {current.parent_stage && (
+                        {current.parent_type && (
                           <span className="text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0" style={{
-                            background: current.parent_stage === 'expecting' ? '#EFF4FF' : 'var(--brand-light)',
-                            color: current.parent_stage === 'expecting' ? '#2563EB' : 'var(--brand)',
+                            background: current.parent_type === 'expecting' ? '#EFF4FF' : 'var(--brand-light)',
+                            color: current.parent_type === 'expecting' ? '#2563EB' : 'var(--brand)',
                           }}>
-                            {current.parent_stage === 'expecting' ? 'Expecting' : current.parent_stage === 'both' ? 'Parent & Expecting' : 'Parent'}
+                            {current.parent_type === 'expecting' ? 'Expecting' : current.parent_type === 'both' ? 'Parent & Expecting' : 'Parent'}
                           </span>
                         )}
                       </div>

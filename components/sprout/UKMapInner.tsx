@@ -84,7 +84,7 @@ export default function UKMapInner({ profiles, center, zoom = 11, currentUserId,
                   {p.neighborhood && <p style={{ fontSize: 11, color: '#9a8070', margin: 0 }}>{p.neighborhood}</p>}
                 </div>
               </div>
-              {p.parent_stage && <p style={{ fontSize: 11, color: '#7a6055', marginTop: 4, marginBottom: 0, textTransform: 'capitalize' }}>{p.parent_stage}</p>}
+              {p.parent_type && <p style={{ fontSize: 11, color: '#7a6055', marginTop: 4, marginBottom: 0, textTransform: 'capitalize' }}>{p.parent_type}</p>}
             </div>
           </Popup>
         </Marker>
