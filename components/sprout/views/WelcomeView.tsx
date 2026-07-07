@@ -5,6 +5,7 @@ import { MapPin, Heart, ArrowRight, Users, Sparkles } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import type { DbProfile } from '@/lib/types';
+import { enrichProfilesWithChildren } from '@/lib/profiles';
 
 interface WelcomeViewProps {
   onDone: () => void;
@@ -33,7 +34,7 @@ export default function WelcomeView({ onDone, onGoToMatching }: WelcomeViewProps
         .limit(10);
 
       if (data && data.length > 0) {
-        setNearbyParents(data as DbProfile[]);
+        setNearbyParents(await enrichProfilesWithChildren(data as DbProfile[]));
         return;
       }
     }
@@ -48,7 +49,7 @@ export default function WelcomeView({ onDone, onGoToMatching }: WelcomeViewProps
         .ilike('postcode', `${district}%`)
         .limit(10);
       if (data && data.length > 0) {
-        setNearbyParents(data as DbProfile[]);
+        setNearbyParents(await enrichProfilesWithChildren(data as DbProfile[]));
         return;
       }
     }
@@ -59,7 +60,7 @@ export default function WelcomeView({ onDone, onGoToMatching }: WelcomeViewProps
       .select('*')
       .neq('id', profile.id)
       .limit(6);
-    setNearbyParents((data ?? []) as DbProfile[]);
+    setNearbyParents(await enrichProfilesWithChildren((data ?? []) as DbProfile[]));
   }, [profile]);
 
   useEffect(() => {

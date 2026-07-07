@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { X, Heart, MapPin, Baby, Star, SlidersHorizontal, ChevronRight, UserPlus, Users, Compass, Check, Clock, Map } from 'lucide-react';
 import type { Profile } from '@/lib/profiles';
+import { enrichProfilesWithChildren } from '@/lib/profiles';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import type { DbProfile, DbConnection } from '@/lib/types';
@@ -59,7 +60,8 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
     const profileMap: Record<string, DbProfile> = {};
     if (profileIds.length > 0) {
       const { data: rows } = await supabase.from('profiles').select('*').in('id', profileIds);
-      (rows ?? []).forEach((p: DbProfile) => { profileMap[p.id] = p; });
+      const enriched = await enrichProfilesWithChildren((rows ?? []) as DbProfile[]);
+      enriched.forEach((p: DbProfile) => { profileMap[p.id] = p; });
     }
 
     const mapped: RealConnection[] = data.map(c => ({
@@ -84,7 +86,8 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
     const profileMap: Record<string, DbProfile> = {};
     if (profileIds.length > 0) {
       const { data: rows } = await supabase.from('profiles').select('*').in('id', profileIds);
-      (rows ?? []).forEach((p: DbProfile) => { profileMap[p.id] = p; });
+      const enriched = await enrichProfilesWithChildren((rows ?? []) as DbProfile[]);
+      enriched.forEach((p: DbProfile) => { profileMap[p.id] = p; });
     }
 
     const mapped: RealConnection[] = data.map(c => ({
@@ -109,7 +112,8 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
     const profileMap: Record<string, DbProfile> = {};
     if (profileIds.length > 0) {
       const { data: rows } = await supabase.from('profiles').select('*').in('id', profileIds);
-      (rows ?? []).forEach((p: DbProfile) => { profileMap[p.id] = p; });
+      const enriched = await enrichProfilesWithChildren((rows ?? []) as DbProfile[]);
+      enriched.forEach((p: DbProfile) => { profileMap[p.id] = p; });
     }
 
     const mapped: RealConnection[] = data.map(c => ({
@@ -138,7 +142,8 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
     if (stageFilter) query = query.eq('parent_stage', stageFilter === 'expecting' ? 'expecting' : stageFilter);
 
     const { data } = await query;
-    setDiscoverQueue((data ?? []) as DbProfile[]);
+    const enriched = await enrichProfilesWithChildren((data ?? []) as DbProfile[]);
+    setDiscoverQueue(enriched);
     setDiscoverIdx(0);
   }, [user, stageFilter]);
 
@@ -159,7 +164,8 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
       .not('lat', 'is', null)
       .not('lng', 'is', null)
       .limit(100);
-    setMapProfiles((data ?? []) as DbProfile[]);
+    const enriched = await enrichProfilesWithChildren((data ?? []) as DbProfile[]);
+    setMapProfiles(enriched);
   }, []);
 
   useEffect(() => {

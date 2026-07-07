@@ -1,3 +1,10 @@
+export interface DbChild {
+  id: string;
+  user_id: string;
+  age_months: number;
+  created_at: string;
+}
+
 export interface DbProfile {
   id: string;
   name: string;

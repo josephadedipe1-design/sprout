@@ -8,6 +8,7 @@ import {
   Users, Calendar, Plus, Eye, EyeOff, Star, Sun, Smile, Upload,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { AGE_LABEL_TO_MONTHS } from '@/lib/profiles';
 
 const STEPS = [
   { id: 1, title: 'Create your account', sub: 'Join thousands of parents nearby' },
@@ -124,8 +125,8 @@ export default function SignupPage() {
         });
         if (signUpError) throw signUpError;
         if (!authData.user) throw new Error('Sign up failed. Please try again.');
+        const userId = authData.user.id;
 
-        const childrenAges = children.filter(Boolean);
         const dueDate = showDue && dueMonth ? `${dueMonth} ${dueYear}` : null;
 
         // Upload avatar if user selected one
@@ -133,7 +134,7 @@ export default function SignupPage() {
         if (avatarFile) {
           try {
             const ext = avatarFile.name.split('.').pop() ?? 'jpg';
-            const path = `${authData.user.id}/avatar.${ext}`;
+            const path = `${userId}/avatar.${ext}`;
             const { error: uploadError } = await supabase.storage
               .from('avatars')
               .upload(path, avatarFile, { upsert: true });
@@ -165,7 +166,7 @@ export default function SignupPage() {
         }
 
         const { error: profileError } = await supabase.from('profiles').insert({
-          id: authData.user.id,
+          id: userId,
           name: form.name || 'New Parent',
           bio: '',
           neighborhood,
@@ -173,13 +174,23 @@ export default function SignupPage() {
           avatar_url: avatarUrl,
           parent_stage: form.parentStage || 'parent',
           interests: selectedInterests,
-          children_ages: childrenAges,
           postcode: form.postcode,
           due_date: dueDate,
           lat,
           lng,
         });
         if (profileError) throw profileError;
+
+        // Insert each child as a separate row in the children table
+        const childrenToInsert = children
+          .filter(Boolean)
+          .map(label => ({
+            user_id: userId,
+            age_months: AGE_LABEL_TO_MONTHS[label] ?? 0,
+          }));
+        if (childrenToInsert.length > 0) {
+          await supabase.from('children').insert(childrenToInsert);
+        }
 
       setStep(s => s + 1);
       } catch (err: unknown) {
