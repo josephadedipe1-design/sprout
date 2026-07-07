@@ -172,24 +172,7 @@ export default function SignupPage() {
         }
 
         // Geocode postcode via postcodes.io (free, no key needed)
-        let lat: number | null = null;
-        let lng: number | null = null;
-        let neighborhood = form.postcode ? form.postcode.trim().split(/\s/)[0].toUpperCase() + ' Area' : '';
-        let city = '';
-        if (form.postcode) {
-          try {
-            const geoRes = await fetch(
-              `https://api.postcodes.io/postcodes/${encodeURIComponent(form.postcode.trim())}`
-            );
-            const geoData = await geoRes.json();
-            if (geoData.status === 200 && geoData.result) {
-              lat = geoData.result.latitude;
-              lng = geoData.result.longitude;
-              neighborhood = geoData.result.admin_ward || geoData.result.parliamentary_constituency || neighborhood;
-              city = geoData.result.admin_district || geoData.result.region || '';
-            }
-          } catch { /* non-fatal — fall back to postcode district */ }
-        }
+        // (retained for future use; only postcode_district is stored on profile)
 
         const nameParts = (form.name || '').trim().split(/\s+/);
         const firstName = nameParts[0] || 'Parent';
@@ -199,17 +182,11 @@ export default function SignupPage() {
           id: userId,
           first_name: firstName,
           last_initial: lastInitial,
-          name: form.name || 'New Parent',
-          bio: '',
-          neighborhood,
-          city,
-          avatar_url: avatarUrl,
-          parent_stage: form.parentStage || 'parent',
-          interests: selectedInterests,
-          postcode: form.postcode,
+          postcode_district: form.postcode.split(' ')[0],
+          parent_type: form.parentStage || 'parent',
           due_date: dueDate,
-          lat,
-          lng,
+          bio: '',
+          avatar_url: avatarUrl,
         };
         console.log('[signup] profile insert payload:', profilePayload);
         const { error: profileError } = await supabase.from('profiles').insert(profilePayload);
