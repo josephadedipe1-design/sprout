@@ -44,8 +44,11 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
 
   useEffect(() => {
     if (profile) {
+      const fallbackName = profile.first_name
+        ? `${profile.first_name}${profile.last_initial ? ' ' + profile.last_initial : ''}`
+        : '';
       setForm({
-        name: profile.name,
+        name: profile.name || fallbackName,
         bio: profile.bio,
         neighborhood: profile.neighborhood,
         city: profile.city,
@@ -124,18 +127,27 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
       setGeocoding(false);
     }
 
+    const nameParts = (form.name || '').trim().split(/\s+/);
+    const firstName = nameParts[0] || '';
+    const lastInitial = nameParts.length > 1 ? nameParts[nameParts.length - 1][0].toUpperCase() : '';
+    const finalPostcode = postcodeTrimmed || profile?.postcode || '';
+
     const update: Record<string, unknown> = {
+      id: user.id,
       name: form.name,
+      first_name: firstName,
+      last_initial: lastInitial,
       bio: form.bio.slice(0, BIO_MAX),
       neighborhood,
       city,
       interests: form.interests,
-      postcode: postcodeTrimmed || profile?.postcode,
+      postcode: finalPostcode,
+      postcode_district: finalPostcode.split(' ')[0] || profile?.postcode_district || '',
       updated_at: new Date().toISOString(),
     };
     if (lat !== undefined) { update.lat = lat; update.lng = lng; }
 
-    const { error: updateError } = await supabase.from('profiles').update(update).eq('id', user.id);
+    const { error: updateError } = await supabase.from('profiles').upsert(update);
 
     if (updateError) {
       setError('Failed to save changes. Please try again.');
@@ -211,8 +223,23 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
 
       <div className="space-y-5">
         <div>
-          <label className="block text-sm font-medium mb-1.5" style={{ color: '#4a3328' }}>Display name</label>
-          <input className="input-sprout" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+          <label className="block text-sm font-medium mb-1.5" style={{ color: '#4a3328' }}>Full name</label>
+          <input
+            className="input-sprout"
+            placeholder="e.g. Sarah Thompson"
+            value={form.name}
+            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+          />
+          {form.name.trim() && (() => {
+            const parts = form.name.trim().split(/\s+/);
+            const fn = parts[0];
+            const li = parts.length > 1 ? parts[parts.length - 1][0].toUpperCase() + '.' : '';
+            return (
+              <p className="text-xs mt-1" style={{ color: '#9a8070' }}>
+                Shown on your profile as <strong style={{ color: '#5a4035' }}>{fn}{li ? ' ' + li : ''}</strong>
+              </p>
+            );
+          })()}
         </div>
 
         <div>
@@ -249,13 +276,33 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
               placeholder="e.g. SW1A 1AA"
               value={form.postcode}
               onChange={(e) => { setForm((f) => ({ ...f, postcode: e.target.value.toUpperCase() })); setGeocodeStatus('idle'); }}
+              onBlur={async (e) => {
+                const pc = e.target.value.trim();
+                const fullPattern = /^[A-Z]{1,2}[0-9][0-9A-Z]?\s?[0-9][A-Z]{2}$/i;
+                if (!pc || !fullPattern.test(pc)) return;
+                setGeocoding(true);
+                try {
+                  const res = await fetch(`https://api.postcodes.io/postcodes/${encodeURIComponent(pc)}`);
+                  const data = await res.json();
+                  if (data.status === 200 && data.result) {
+                    const { admin_ward, parliamentary_constituency, admin_district, region } = data.result;
+                    setForm(f => ({
+                      ...f,
+                      neighborhood: f.neighborhood || admin_ward || parliamentary_constituency || '',
+                      city: f.city || admin_district || region || '',
+                    }));
+                    setGeocodeStatus('ok');
+                  }
+                } catch { /* ignore */ }
+                setGeocoding(false);
+              }}
             />
             {geocoding && (
               <Loader2 className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 animate-spin" style={{ color: '#c4a090' }} />
             )}
           </div>
           {geocodeStatus === 'ok' && (
-            <p className="text-xs mt-1 font-medium" style={{ color: '#059669' }}>Location found — you&apos;ll appear on the map!</p>
+            <p className="text-xs mt-1 font-medium" style={{ color: '#059669' }}>Location found — neighbourhood and city updated!</p>
           )}
           {geocodeStatus === 'error' && (
             <p className="text-xs mt-1 font-medium" style={{ color: '#b45309' }}>Postcode not recognised — check spelling and try again.</p>

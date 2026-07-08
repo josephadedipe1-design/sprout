@@ -63,10 +63,16 @@ export default function SignupPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+  const [geocoding, setGeocoding] = useState(false);
+  const [geocodeError, setGeocodeError] = useState('');
+  const [postcodeValidated, setPostcodeValidated] = useState(false);
+  const [avatarUploadFailed, setAvatarUploadFailed] = useState(false);
   const [form, setForm] = useState({
     name: '', email: '', password: '',
     parentStage: '',
     postcode: '',
+    neighborhood: '',
+    city: '',
     avatarId: '',
   });
 
@@ -79,10 +85,48 @@ export default function SignupPage() {
     /[0-9]/.test(form.password) &&
     /[^a-zA-Z0-9]/.test(form.password);
   const step1Complete = form.name.trim() !== '' && form.email.trim() !== '' && passwordValid;
-  const step3Complete = form.postcode.trim() !== '';
+  const step3Complete = postcodeValidated;
 
   function setChildAge(index: number, age: string) {
     setChildren(prev => { const n = [...prev]; n[index] = age; return n; });
+  }
+
+  async function validatePostcode(raw: string) {
+    const pc = raw.trim().toUpperCase();
+    if (!pc) { setGeocodeError(''); setPostcodeValidated(false); return; }
+    // UK full postcode: outward + inward (requires space or run-together like SW1A1AA)
+    const fullPattern = /^[A-Z]{1,2}[0-9][0-9A-Z]?\s?[0-9][A-Z]{2}$/;
+    if (!fullPattern.test(pc)) {
+      setPostcodeValidated(false);
+      setGeocodeError('Please enter a full postcode — e.g. SW1A 1AA');
+      return;
+    }
+    setGeocoding(true);
+    setGeocodeError('');
+    try {
+      const res = await fetch(`https://api.postcodes.io/postcodes/${encodeURIComponent(pc)}`);
+      const data = await res.json();
+      if (data.status === 200 && data.result) {
+        const { admin_ward, parliamentary_constituency, admin_district, region } = data.result;
+        const neighborhood = admin_ward || parliamentary_constituency || '';
+        const city = admin_district || region || '';
+        setForm(f => ({
+          ...f,
+          postcode: pc,
+          neighborhood,
+          city,
+        }));
+        setPostcodeValidated(true);
+        setGeocodeError('');
+      } else {
+        setPostcodeValidated(false);
+        setGeocodeError('Postcode not recognised — please check and try again.');
+      }
+    } catch {
+      setPostcodeValidated(false);
+      setGeocodeError('Could not validate postcode. Please try again.');
+    }
+    setGeocoding(false);
   }
 
   function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -105,7 +149,10 @@ export default function SignupPage() {
             `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${pos.coords.latitude}&longitude=${pos.coords.longitude}&localityLanguage=en`
           );
           const data = await res.json();
-          if (data.postcode) setForm(f => ({ ...f, postcode: data.postcode }));
+          if (data.postcode) {
+            setForm(f => ({ ...f, postcode: data.postcode }));
+            await validatePostcode(data.postcode);
+          }
         } catch { /* fallback: user types manually */ }
         setLocating(false);
       },
@@ -164,33 +211,55 @@ export default function SignupPage() {
             const { error: uploadError } = await supabase.storage
               .from('avatars')
               .upload(path, avatarFile, { upsert: true });
-            if (!uploadError) {
+            if (uploadError) {
+              setAvatarUploadFailed(true);
+            } else {
               const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path);
               avatarUrl = publicUrl;
             }
-          } catch { /* non-fatal — profile gets no avatar, user can add later */ }
+          } catch {
+            setAvatarUploadFailed(true);
+          }
         }
 
-        // Geocode postcode via postcodes.io (free, no key needed)
-        // (retained for future use; only postcode_district is stored on profile)
+        // Geocode postcode to get lat/lng + fill in neighborhood/city if needed
+        let lat: number | undefined;
+        let lng: number | undefined;
+        let neighborhood = form.neighborhood;
+        let city = form.city;
+        if (form.postcode) {
+          try {
+            const geoRes = await fetch(`https://api.postcodes.io/postcodes/${encodeURIComponent(form.postcode.trim())}`);
+            const geoData = await geoRes.json();
+            if (geoData.status === 200 && geoData.result) {
+              lat = geoData.result.latitude;
+              lng = geoData.result.longitude;
+              if (!neighborhood) neighborhood = geoData.result.admin_ward || geoData.result.parliamentary_constituency || '';
+              if (!city) city = geoData.result.admin_district || geoData.result.region || '';
+            }
+          } catch { /* non-fatal */ }
+        }
 
         const nameParts = (form.name || '').trim().split(/\s+/);
         const firstName = nameParts[0] || 'Parent';
         const lastInitial = nameParts.length > 1 ? nameParts[nameParts.length - 1][0].toUpperCase() : '';
 
-        const profilePayload = {
+        const profilePayload: Record<string, unknown> = {
           id: userId,
           name: form.name || 'New Parent',
           first_name: firstName,
           last_initial: lastInitial,
           postcode: form.postcode,
           postcode_district: form.postcode.split(' ')[0],
+          neighborhood,
+          city,
           interests: selectedInterests,
           parent_type: form.parentStage || 'parent',
           due_date: dueDate,
           bio: '',
           avatar_url: avatarUrl,
         };
+        if (lat !== undefined) { profilePayload.lat = lat; profilePayload.lng = lng; }
         console.log('[signup] profile insert payload:', profilePayload);
         const { error: profileError } = await supabase.from('profiles').insert(profilePayload);
         if (profileError) throw profileError;
@@ -439,12 +508,41 @@ export default function SignupPage() {
                 <p className="text-xs mb-3 leading-relaxed" style={{ color: '#9a8070' }}>
                   We only ever show your area — never your exact address or full postcode.
                 </p>
-                <input
-                  className="input-sprout"
-                  placeholder="Enter your postcode (e.g. SW1A 1AA)"
-                  value={form.postcode}
-                  onChange={e => { setForm(f => ({ ...f, postcode: e.target.value })); setError(''); }}
-                />
+                <div className="flex gap-2">
+                  <input
+                    className="input-sprout flex-1 uppercase"
+                    placeholder="Enter full postcode — e.g. SW1A 1AA"
+                    value={form.postcode}
+                    onChange={e => {
+                      setForm(f => ({ ...f, postcode: e.target.value.toUpperCase() }));
+                      setPostcodeValidated(false);
+                      setGeocodeError('');
+                    }}
+                    onBlur={e => { if (e.target.value.trim()) validatePostcode(e.target.value); }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => validatePostcode(form.postcode)}
+                    disabled={!form.postcode.trim() || geocoding}
+                    className="px-4 py-2 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80 flex-shrink-0"
+                    style={{
+                      background: postcodeValidated ? '#d6ede3' : 'var(--brand-light)',
+                      color: postcodeValidated ? '#2d7a52' : 'var(--brand)',
+                      border: `1px solid ${postcodeValidated ? '#a7d9be' : '#e8c9b4'}`,
+                      opacity: !form.postcode.trim() || geocoding ? 0.5 : 1,
+                    }}
+                  >
+                    {geocoding ? '…' : postcodeValidated ? 'Valid' : 'Check'}
+                  </button>
+                </div>
+                {geocodeError && (
+                  <p className="text-xs mt-1.5 font-medium" style={{ color: '#b45309' }}>{geocodeError}</p>
+                )}
+                {postcodeValidated && form.city && (
+                  <p className="text-xs mt-1.5 font-medium" style={{ color: '#059669' }}>
+                    Found: {[form.neighborhood, form.city].filter(Boolean).join(', ')}
+                  </p>
+                )}
               </div>
               <div
                 onClick={handleUseLocation}
@@ -594,6 +692,11 @@ export default function SignupPage() {
               <p className="text-sm leading-relaxed" style={{ color: '#7a6055' }}>
                 You&apos;re officially part of the Sprout community. Connect with parents near you and start sharing!
               </p>
+              {avatarUploadFailed && (
+                <p className="text-xs p-3 rounded-xl" style={{ background: '#FFF7ED', color: '#92400E', border: '1px solid #FDE68A' }}>
+                  Photo upload didn&apos;t work this time — you can add it from your profile after joining.
+                </p>
+              )}
               <div className="pt-2 space-y-3">
                 {['Feed', 'Market', 'Messages'].map(feature => (
                   <div key={feature} className="flex items-center gap-3 text-sm" style={{ color: '#5a4035' }}>

@@ -73,7 +73,7 @@ interface FeedViewProps {
 }
 
 export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpenListing }: FeedViewProps) {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [dbPosts, setDbPosts] = useState<Post[]>([]);
   const [feedListings, setFeedListings] = useState<FeedListing[]>([]);
   const [listingsLoaded, setListingsLoaded] = useState(false);
@@ -83,6 +83,19 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
   const [areaName, setAreaName] = useState('');
   const [copied, setCopied] = useState(false);
   const [menuPostId, setMenuPostId] = useState<string | null>(null);
+
+  const isNewUser = !!(
+    profile?.created_at &&
+    Date.now() - new Date(profile.created_at).getTime() < 72 * 60 * 60 * 1000 &&
+    typeof window !== 'undefined' &&
+    !localStorage.getItem(`sprout_welcome_post_seen_${user?.id}`)
+  );
+
+  useEffect(() => {
+    if (isNewUser && user) {
+      localStorage.setItem(`sprout_welcome_post_seen_${user.id}`, 'true');
+    }
+  }, [isNewUser, user]);
 
   const loadPosts = useCallback(async () => {
     if (!user) return;
@@ -237,6 +250,35 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
     return () => document.removeEventListener('click', close);
   }, [menuPostId]);
 
+  function buildInviteMessage() {
+    const base = areaName ? `Hey! I've joined Sprout — a community app for parents in ${areaName}.` : "Hey! I've joined Sprout — a community app for local parents.";
+    return `${base} Come join and connect with families near you! ${typeof window !== 'undefined' ? window.location.origin : ''}`;
+  }
+
+  function copyInvite() {
+    navigator.clipboard.writeText(buildInviteMessage()).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    });
+  }
+
+  async function shareInvite() {
+    const msg = buildInviteMessage();
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Join Sprout',
+          text: msg,
+          url: typeof window !== 'undefined' ? window.location.origin : '',
+        });
+        return;
+      } catch {
+        // user cancelled or API unavailable — fall through to copy
+      }
+    }
+    copyInvite();
+  }
+
   const filters = ['All', 'Questions', 'Meetups', 'Market', 'Support'];
   const filtered = activeFilter === 'All' ? dbPosts : dbPosts.filter((p) => {
     const map: Record<string, string> = { Questions: 'question', Support: 'support', Meetups: 'meetup', Market: 'market' };
@@ -379,6 +421,31 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
       {/* Posts */}
       {activeFilter !== 'Market' && !loading && (
         <div className="space-y-4">
+          {/* Sprout welcome post — shown for new users in their first 72h */}
+          {isNewUser && (
+            <article className="card-sprout overflow-hidden">
+              <div className="p-4">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'var(--brand)' }}>
+                      <Leaf className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold" style={{ color: '#2a1f18' }}>Sprout</p>
+                      <p className="text-xs" style={{ color: '#9a8070' }}>just now</p>
+                    </div>
+                  </div>
+                  <span className="tag-sprout" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>Welcome</span>
+                </div>
+                <p className="text-sm font-semibold mb-1.5" style={{ color: '#2a1f18' }}>
+                  Welcome to Sprout{profile?.first_name ? `, ${profile.first_name}` : ''}!
+                </p>
+                <p className="text-sm leading-relaxed" style={{ color: '#3a2820', lineHeight: 1.6 }}>
+                  We&apos;re so glad you&apos;re here. This is your community feed — a place to ask questions, share tips, find meetups, and support other parents nearby. Dive in and say hello!
+                </p>
+              </div>
+            </article>
+          )}
           {filtered.length === 0 && (
             <div className="flex flex-col items-center text-center py-14">
               <div className="w-14 h-14 rounded-full flex items-center justify-center mb-4" style={{ background: 'var(--brand-light)' }}>
@@ -528,19 +595,18 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
 
           <div className="flex items-center border-t px-4 py-2.5" style={{ borderColor: 'var(--border-color)' }}>
             <button
-              onClick={() => {
-                navigator.clipboard.writeText(window.location.origin).then(() => {
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 2000);
-                });
-              }}
+              onClick={copyInvite}
               className="flex items-center gap-1.5 text-sm mr-5 transition-colors font-medium"
               style={{ color: copied ? 'var(--brand)' : '#9a8070' }}
             >
               {copied ? <CheckIcon className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-              {copied ? 'Link copied!' : 'Copy invite link'}
+              {copied ? 'Copied!' : 'Copy invite'}
             </button>
-            <button className="flex items-center gap-1.5 text-sm mr-5" style={{ color: '#9a8070' }}>
+            <button
+              onClick={shareInvite}
+              className="flex items-center gap-1.5 text-sm font-medium transition-opacity hover:opacity-70"
+              style={{ color: '#9a8070' }}
+            >
               <Share2 className="w-4 h-4" />
               Share
             </button>

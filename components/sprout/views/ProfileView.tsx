@@ -100,15 +100,39 @@ export default function ProfileView({ onEditProfile, onSettings }: ProfileViewPr
     loadActivity();
   }, [user]);
 
-  const displayName = profile?.name || (profile?.first_name ? `${profile.first_name}${profile.last_initial ? ' ' + profile.last_initial + '.' : ''}` : 'You');
+  const firstName = profile?.first_name || profile?.name?.split(' ')[0] || '';
+  const lastInitial = profile?.last_initial || (profile?.name?.split(' ').length ?? 0) > 1
+    ? (profile?.last_initial || profile?.name?.split(' ').pop()?.[0] || '')
+    : '';
+  const displayName = firstName
+    ? `${firstName}${lastInitial ? ' ' + lastInitial + '.' : ''}`
+    : 'You';
   const location = profile?.postcode_district || [profile?.neighborhood, profile?.city].filter(Boolean).join(', ') || 'Location not set';
-  const bio = profile?.bio || 'No bio yet.';
+  const bio = profile?.bio || '';
   const interests = profile?.interests ?? [];
   const avatarUrl = profile?.avatar_url || '';
-  const initials = displayName.charAt(0).toUpperCase();
+  const initials = firstName ? firstName.charAt(0).toUpperCase() : 'Y';
+
+  const profileIncomplete = !firstName;
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 pb-24 lg:pb-6">
+      {profileIncomplete && (
+        <div
+          className="mb-5 p-4 rounded-2xl flex items-start gap-3"
+          style={{ background: '#fff8f3', border: '1px solid #f0d0b4' }}
+        >
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5" style={{ background: '#fde8d8' }}>
+            <Edit3 className="w-4 h-4" style={{ color: '#c05a20' }} />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-semibold mb-0.5" style={{ color: '#2a1f18' }}>Complete your profile</p>
+            <p className="text-xs leading-relaxed" style={{ color: '#9a8070' }}>
+              Your registration details didn&apos;t save correctly. Tap <strong>Edit</strong> to add your name, postcode, and interests.
+            </p>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-start gap-4 mb-5">
         {avatarUrl ? (
@@ -155,15 +179,21 @@ export default function ProfileView({ onEditProfile, onSettings }: ProfileViewPr
       </div>
 
       {/* Bio */}
-      <p className="text-sm leading-relaxed mb-4" style={{ color: '#5a4035', lineHeight: 1.6 }}>{bio}</p>
+      {bio ? (
+        <p className="text-sm leading-relaxed mb-4" style={{ color: '#5a4035', lineHeight: 1.6 }}>{bio}</p>
+      ) : (
+        <p className="text-sm mb-4 italic" style={{ color: '#c4a090' }}>No bio yet — add one via Edit.</p>
+      )}
 
       {/* Interest tags */}
-      {interests.length > 0 && (
+      {interests.length > 0 ? (
         <div className="flex flex-wrap gap-1.5 mb-5">
           {interests.map((t) => (
             <span key={t} className="tag-sprout text-xs" style={{ background: '#f4f3f0', color: '#7a6055', border: '1px solid #e0dbd4' }}>{t}</span>
           ))}
         </div>
+      ) : (
+        <p className="text-sm mb-5 italic" style={{ color: '#c4a090' }}>No interests selected — add some via Edit.</p>
       )}
 
       {/* Stats */}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { MapPin, Heart, ArrowRight, Users, Sparkles } from 'lucide-react';
+import { MapPin, Heart, ArrowRight, Users, Sparkles, Copy, Check as CheckIcon, Share2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import type { DbProfile } from '@/lib/types';
@@ -15,6 +15,7 @@ interface WelcomeViewProps {
 export default function WelcomeView({ onDone, onGoToMatching }: WelcomeViewProps) {
   const { profile } = useAuth();
   const [nearbyParents, setNearbyParents] = useState<DbProfile[]>([]);
+  const [copied, setCopied] = useState(false);
 
   const loadNearby = useCallback(async () => {
     if (!profile) return;
@@ -68,6 +69,31 @@ export default function WelcomeView({ onDone, onGoToMatching }: WelcomeViewProps
   }, [loadNearby]);
 
   const firstName = profile?.first_name || 'there';
+  const district = profile?.postcode_district || profile?.postcode?.split(' ')[0] || '';
+
+  function buildInviteMessage() {
+    const loc = district || (profile?.neighborhood ? profile.neighborhood : '');
+    const base = loc ? `Hey! I've just joined Sprout — a community app for parents in ${loc}.` : "Hey! I've just joined Sprout — a community app for local parents.";
+    return `${base} Come join and connect with families near you! ${typeof window !== 'undefined' ? window.location.origin : ''}`;
+  }
+
+  function copyInvite() {
+    navigator.clipboard.writeText(buildInviteMessage()).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    });
+  }
+
+  async function shareInvite() {
+    const msg = buildInviteMessage();
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({ title: 'Join Sprout', text: msg, url: typeof window !== 'undefined' ? window.location.origin : '' });
+        return;
+      } catch { /* fall through */ }
+    }
+    copyInvite();
+  }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-10" style={{ background: 'var(--bg)' }}>
@@ -101,7 +127,25 @@ export default function WelcomeView({ onDone, onGoToMatching }: WelcomeViewProps
           {nearbyParents.length === 0 ? (
             <div className="text-center py-4">
               <p className="text-sm font-semibold mb-1" style={{ color: '#2a1f18' }}>Be the first in your area!</p>
-              <p className="text-sm" style={{ color: '#9a8070' }}>Invite parents near you to join Sprout and build your local community.</p>
+              <p className="text-sm mb-4" style={{ color: '#9a8070' }}>Invite parents near you to join Sprout and build your local community.</p>
+              <div className="flex gap-2 justify-center">
+                <button
+                  onClick={copyInvite}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
+                  style={{ background: 'var(--brand-light)', color: 'var(--brand)', border: '1px solid #e8c9b4' }}
+                >
+                  {copied ? <CheckIcon className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  {copied ? 'Copied!' : 'Copy invite'}
+                </button>
+                <button
+                  onClick={shareInvite}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
+                  style={{ background: 'white', color: '#5a4035', border: '1px solid var(--border-color)' }}
+                >
+                  <Share2 className="w-4 h-4" />
+                  Share
+                </button>
+              </div>
             </div>
           ) : (
             <>
