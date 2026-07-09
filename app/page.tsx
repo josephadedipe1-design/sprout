@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Eye, EyeOff, Leaf, MapPin, Users, ShieldCheck, X, CheckCircle, Check } from 'lucide-react';
+import Link from 'next/link';
+import { Eye, EyeOff, Leaf, MapPin, Users, ShieldCheck, X, CheckCircle, ArrowRight } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 export default function LoginPage() {
@@ -22,20 +23,6 @@ export default function LoginPage() {
   const [forgotSent, setForgotSent] = useState(false);
   const [forgotError, setForgotError] = useState('');
 
-  // ── Quick signup state ────────────────────────────────────────────────────
-  const [signupName, setSignupName] = useState('');
-  const [signupEmail, setSignupEmail] = useState('');
-  const [signupPassword, setSignupPassword] = useState('');
-  const [showSignupPw, setShowSignupPw] = useState(false);
-  const [signupError, setSignupError] = useState('');
-  const [signupLoading, setSignupLoading] = useState(false);
-
-  const signupPasswordValid =
-    signupPassword.length >= 8 &&
-    /[a-zA-Z]/.test(signupPassword) &&
-    /[0-9]/.test(signupPassword) &&
-    /[^a-zA-Z0-9]/.test(signupPassword);
-
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setError('');
@@ -48,51 +35,6 @@ export default function LoginPage() {
       setLoading(false);
     } else {
       router.push('/app');
-    }
-  }
-
-  async function handleQuickSignup(e: React.FormEvent) {
-    e.preventDefault();
-    if (!signupName.trim() || !signupEmail.trim() || !signupPasswordValid) return;
-    setSignupError('');
-    setSignupLoading(true);
-
-    try {
-      const { data: authData, error: signUpError } = await supabase.auth.signUp({
-        email: signupEmail,
-        password: signupPassword,
-      });
-      if (signUpError) throw signUpError;
-      if (!authData.user) throw new Error('Sign up failed. Please try again.');
-
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const nameParts = signupName.trim().split(/\s+/);
-        const firstName = nameParts[0] || '';
-        const lastInitial = nameParts.length > 1 ? nameParts[nameParts.length - 1][0].toUpperCase() : '';
-        await supabase.from('profiles').upsert({
-          id: user.id,
-          name: signupName,
-          first_name: firstName,
-          last_initial: lastInitial,
-          bio: '',
-          interests: [],
-          parent_type: 'parent',
-          postcode: '',
-          postcode_district: '',
-        });
-      }
-      router.push('/app?welcome=1');
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Something went wrong. Please try again.';
-      if (msg.toLowerCase().includes('weak') || msg.toLowerCase().includes('easy to guess') || msg.toLowerCase().includes('pwned')) {
-        setSignupError('That password is too common — please choose something more unique.');
-      } else if (msg.toLowerCase().includes('already registered') || msg.toLowerCase().includes('already exists')) {
-        setSignupError('An account with this email already exists. Try logging in.');
-      } else {
-        setSignupError(msg);
-      }
-      setSignupLoading(false);
     }
   }
 
@@ -171,7 +113,7 @@ export default function LoginPage() {
           {/* Tab switcher */}
           <div className="flex rounded-2xl p-1 mb-8" style={{ background: '#f0ece8' }}>
             <button
-              onClick={() => { setActiveTab('signup'); setSignupError(''); }}
+              onClick={() => setActiveTab('signup')}
               className="flex-1 py-2.5 text-sm font-semibold rounded-xl transition-all"
               style={{
                 background: activeTab === 'signup' ? 'white' : 'transparent',
@@ -200,91 +142,30 @@ export default function LoginPage() {
               <h2 className="text-3xl font-extrabold mb-1.5" style={{ color: '#1a1208' }}>Create your account</h2>
               <p className="mb-8 text-base" style={{ color: '#8a7a6a' }}>Join parents near you — it&apos;s completely free.</p>
 
-              <form onSubmit={handleQuickSignup} className="space-y-5">
-                {signupError && (
-                  <div className="p-3 rounded-xl text-sm font-medium" style={{ background: '#FEF2F2', color: '#991B1B', border: '1px solid #FECACA' }}>
-                    {signupError}
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-widest mb-2" style={{ color: '#3a2820' }}>First Name</label>
-                  <input
-                    className="input-sprout"
-                    type="text"
-                    placeholder="Jane"
-                    value={signupName}
-                    onChange={(e) => setSignupName(e.target.value)}
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-widest mb-2" style={{ color: '#3a2820' }}>Email Address</label>
-                  <div className="relative">
-                    <input
-                      className="input-sprout pr-11"
-                      type="email"
-                      placeholder="you@example.com"
-                      value={signupEmail}
-                      onChange={(e) => setSignupEmail(e.target.value)}
-                      required
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#c4a090' }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>
-                    </span>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-widest mb-2" style={{ color: '#3a2820' }}>Password</label>
-                  <div className="relative">
-                    <input
-                      className="input-sprout pr-11"
-                      type={showSignupPw ? 'text' : 'password'}
-                      placeholder="At least 8 characters"
-                      value={signupPassword}
-                      onChange={(e) => { setSignupPassword(e.target.value); setSignupError(''); }}
-                      required
-                    />
-                    <button
-                      type="button"
-                      className="absolute right-3 top-1/2 -translate-y-1/2"
-                      style={{ color: '#9a7060' }}
-                      onClick={() => setShowSignupPw(!showSignupPw)}
-                    >
-                      {showSignupPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                  {signupPassword.length > 0 && (
-                    <div className="mt-2.5 space-y-1">
-                      {[
-                        { label: 'At least 8 characters', met: signupPassword.length >= 8 },
-                        { label: 'Contains a letter', met: /[a-zA-Z]/.test(signupPassword) },
-                        { label: 'Contains a number', met: /[0-9]/.test(signupPassword) },
-                        { label: 'Contains a symbol', met: /[^a-zA-Z0-9]/.test(signupPassword) },
-                      ].map(({ label, met }) => (
-                        <div key={label} className="flex items-center gap-2">
-                          <div className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0"
-                            style={{ background: met ? '#d6ede3' : '#f0ece5' }}>
-                            <Check className="w-2.5 h-2.5" style={{ color: met ? '#2d7a52' : '#c4b0a0' }} />
-                          </div>
-                          <span className="text-xs" style={{ color: met ? '#2d7a52' : '#9a8070' }}>{label}</span>
-                        </div>
-                      ))}
+              <div className="space-y-4">
+                {[
+                  { icon: MapPin, title: 'Hyper-local community', desc: 'Posts, meetups and parents within 2 miles of you.' },
+                  { icon: Users, title: 'Real connections', desc: 'Match with parents at exactly the same stage.' },
+                  { icon: ShieldCheck, title: 'Safe and private', desc: 'Only your area is ever shown — never your address.' },
+                ].map(({ icon: Icon, title, desc }) => (
+                  <div key={title} className="flex items-start gap-3 p-3.5 rounded-xl" style={{ background: '#faf8f6', border: '1px solid var(--border-color)' }}>
+                    <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--brand-light)' }}>
+                      <Icon className="w-4 h-4" style={{ color: 'var(--brand)' }} />
                     </div>
-                  )}
-                </div>
+                    <div>
+                      <p className="text-sm font-semibold" style={{ color: '#2a1f18' }}>{title}</p>
+                      <p className="text-xs mt-0.5" style={{ color: '#9a8070' }}>{desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
 
-                <button
-                  type="submit"
-                  className="btn-brand w-full text-base py-3.5 mt-1"
-                  disabled={signupLoading || !signupName.trim() || !signupEmail.trim() || !signupPasswordValid}
-                  style={{ opacity: signupLoading || !signupName.trim() || !signupEmail.trim() || !signupPasswordValid ? 0.5 : 1 }}
-                >
-                  {signupLoading ? 'Creating account…' : 'Create my account'}
-                </button>
-              </form>
+              <Link
+                href="/signup"
+                className="btn-brand w-full text-base py-3.5 mt-8 flex items-center justify-center gap-2"
+              >
+                Get started <ArrowRight className="w-4 h-4" />
+              </Link>
 
               <p className="mt-5 text-center text-xs" style={{ color: '#b8a090' }}>
                 By joining you agree to our{' '}

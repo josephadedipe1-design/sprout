@@ -16,9 +16,9 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
 interface Post {
   id: string;
   type: string;
-  content: string;
+  body: string;
   tags: string[];
-  anonymous: boolean;
+  is_anonymous: boolean;
   created_at: string;
   user_id: string;
   profile: DbProfile | null;
@@ -52,6 +52,102 @@ const TYPE_COLORS: Record<string, { bg: string; text: string; label: string }> =
 };
 
 const PLACEHOLDER_IMG = 'https://images.pexels.com/photos/1148998/pexels-photo-1148998.jpeg';
+
+// Hardcoded neighbour map for UK postcode districts.
+// Each entry lists immediate neighbouring districts (roughly within 2 miles).
+const DISTRICT_NEIGHBOURS: Record<string, string[]> = {
+  // South East London
+  SE1:  ['SE11','SE16','SE17','SE1','EC1','EC4','SW1'],
+  SE4:  ['SE13','SE14','SE23','SE4','SE5','SE22'],
+  SE5:  ['SE15','SE17','SE22','SE24','SE4'],
+  SE6:  ['SE12','SE13','SE23','SE26','BR1'],
+  SE8:  ['SE10','SE14','SE16'],
+  SE9:  ['SE12','SE18','BR5','DA16'],
+  SE10: ['SE3','SE7','SE8','SE14'],
+  SE12: ['SE6','SE9','SE13','BR1'],
+  SE13: ['SE4','SE6','SE12','SE14','SE23'],
+  SE14: ['SE4','SE8','SE13','SE15'],
+  SE15: ['SE5','SE14','SE17','SE22'],
+  SE16: ['SE1','SE8','SE17'],
+  SE17: ['SE1','SE5','SE11','SE15','SE16'],
+  SE18: ['SE7','SE9','DA18'],
+  SE22: ['SE4','SE5','SE15','SE21','SE23','SE24'],
+  SE23: ['SE4','SE6','SE13','SE22','SE26'],
+  SE24: ['SE5','SE21','SE22','SW2'],
+  SE26: ['SE6','SE23','SE25','BR3'],
+  // South West London
+  SW1:  ['SW3','SW7','SW10','W1'],
+  SW2:  ['SW4','SW9','SW16','SE24'],
+  SW3:  ['SW1','SW7','SW10'],
+  SW4:  ['SW2','SW8','SW9','SW12'],
+  SW6:  ['SW3','SW5','SW10','SW15','W6'],
+  SW8:  ['SW4','SW9','SW11','SW12'],
+  SW9:  ['SW2','SW4','SW8','SE5','SE11'],
+  SW11: ['SW4','SW6','SW8','SW12'],
+  SW12: ['SW2','SW4','SW8','SW11','SW16','SW17'],
+  SW15: ['SW6','SW13','SW14','SW18'],
+  SW16: ['SW2','SW12','SW17','CR4','SE27'],
+  SW17: ['SW12','SW16','SW18','CR4'],
+  SW18: ['SW11','SW15','SW17','SW19'],
+  SW19: ['SW17','SW18','SW20','CR4'],
+  // North London
+  N1:   ['N4','N5','N7','EC1','WC1'],
+  N4:   ['N1','N5','N8','N15'],
+  N5:   ['N1','N4','N7','N16'],
+  N7:   ['N1','N5','N19','NW1','NW5'],
+  N8:   ['N4','N10','N17','N22'],
+  N10:  ['N8','N11','N22'],
+  N15:  ['N4','N16','N17'],
+  N16:  ['N1','N4','N5','N15'],
+  N19:  ['N4','N7','N8','N10'],
+  N22:  ['N8','N10','N11','N17'],
+  // North West London
+  NW1:  ['N7','NW3','NW5','NW8','W1'],
+  NW3:  ['NW1','NW5','NW6','NW8'],
+  NW5:  ['N7','NW1','NW3'],
+  NW6:  ['NW2','NW3','NW8','NW10'],
+  NW8:  ['NW1','NW3','NW6','W9'],
+  NW10: ['NW2','NW6','W10'],
+  // East London
+  E1:   ['E2','E3','EC3','SE1'],
+  E2:   ['E1','E3','E8','N1'],
+  E3:   ['E1','E2','E14','E15'],
+  E8:   ['E2','E5','E9','N16'],
+  E9:   ['E2','E3','E5','E8'],
+  E14:  ['E1','E3','SE8','SE10'],
+  E15:  ['E3','E6','E11','E13'],
+  // West London
+  W1:   ['W2','WC1','WC2','SW1','NW1'],
+  W2:   ['W1','W9','W11','NW8'],
+  W6:   ['W4','W12','SW6','SW13'],
+  W9:   ['W2','W10','NW8'],
+  W10:  ['W9','W11','NW10'],
+  W11:  ['W2','W10','W12'],
+  W12:  ['W6','W11','W14'],
+  // Outer London and major cities (sparse coverage)
+  BR1:  ['SE6','SE12','SE20','BR2','BR3'],
+  CR4:  ['SW16','SW17','SW19','CR0','SM4'],
+  // Birmingham
+  B1:   ['B2','B3','B4','B5','B12'],
+  B2:   ['B1','B3','B4','B5'],
+  B15:  ['B1','B5','B16','B17'],
+  // Manchester
+  M1:   ['M2','M3','M4','M8','M12'],
+  M14:  ['M13','M15','M16','M19','M20'],
+  M20:  ['M14','M19','M21','M22'],
+  // Leeds
+  LS1:  ['LS2','LS3','LS4','LS6','LS7'],
+  LS6:  ['LS1','LS2','LS5','LS7','LS16'],
+  // Edinburgh
+  EH1:  ['EH2','EH3','EH6','EH7','EH8'],
+  EH3:  ['EH1','EH2','EH4','EH6','EH9'],
+};
+
+function getLocalDistricts(district: string): string[] {
+  const upper = district.toUpperCase();
+  const neighbours = DISTRICT_NEIGHBOURS[upper] ?? [];
+  return Array.from(new Set([upper, ...neighbours]));
+}
 
 function formatRelativeTime(dateStr: string): string {
   const now = Date.now();
@@ -103,9 +199,11 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
     // Check if user is first in their local area
     const { data: myProfile } = await supabase
       .from('profiles')
-      .select('postcode, neighborhood')
+      .select('postcode, postcode_district, neighborhood')
       .eq('id', user.id)
       .maybeSingle();
+
+    const userDistrict: string = (myProfile as any)?.postcode_district || myProfile?.postcode?.split(' ')[0] || '';
 
     if (myProfile?.postcode) {
       const prefix = myProfile.postcode.trim().split(/\s/)[0].toUpperCase();
@@ -115,15 +213,26 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
         .ilike('postcode', `${prefix}%`);
       if ((count ?? 0) <= 1) {
         setIsFirstInArea(true);
-        setAreaName(myProfile.neighborhood || prefix);
+        setAreaName((myProfile as any).neighborhood || prefix);
       }
     }
 
-    const { data, error } = await supabase
+    // Build the posts query. If the user has a postcode district, filter to
+    // their district and immediate neighbours. Fall back to all posts when no
+    // district is available (new account, district not yet set).
+    let postsQuery = supabase
       .from('posts')
       .select('*, post_likes(count), comment_count:comments(count)')
       .order('created_at', { ascending: false })
       .limit(50);
+
+    if (userDistrict) {
+      const localDistricts = getLocalDistricts(userDistrict);
+      // Also include posts with no district set (empty string) so they're visible to everyone
+      postsQuery = postsQuery.in('postcode_district', [...localDistricts, '']);
+    }
+
+    const { data, error } = await postsQuery;
 
     if (error || !data) { setLoading(false); return; }
 
@@ -154,9 +263,9 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
     const mapped: Post[] = (data as any[]).map((p) => ({
       id: p.id,
       type: p.type,
-      content: p.content,
+      body: p.body,
       tags: p.tags ?? [],
-      anonymous: p.anonymous,
+      is_anonymous: p.is_anonymous,
       created_at: p.created_at,
       user_id: p.user_id,
       profile: profileMap[p.user_id] ?? null,
@@ -462,8 +571,8 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
           )}
           {filtered.map((post) => {
             const typeInfo = TYPE_COLORS[post.type] ?? TYPE_COLORS.question;
-            const authorName = post.anonymous ? 'Anonymous Parent' : (post.profile?.name || 'Community Member');
-            const authorAvatar = post.anonymous ? '' : (post.profile?.avatar_url || '');
+            const authorName = post.is_anonymous ? 'Anonymous Parent' : (post.profile?.name || 'Community Member');
+            const authorAvatar = post.is_anonymous ? '' : (post.profile?.avatar_url || '');
             const authorNeighborhood = post.profile?.neighborhood || '';
             const timeAgo = formatRelativeTime(post.created_at);
 
@@ -472,15 +581,15 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
                 <div className="p-4">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2.5">
-                      {post.anonymous || !authorAvatar ? (
+                      {post.is_anonymous || !authorAvatar ? (
                         <div
                           className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold"
-                          style={post.anonymous
+                          style={post.is_anonymous
                             ? { background: '#EFF4FF', color: '#2563EB' }
                             : { background: 'var(--brand-light)', color: 'var(--brand)' }
                           }
                         >
-                          {post.anonymous ? '?' : authorName.charAt(0)}
+                          {post.is_anonymous ? '?' : authorName.charAt(0)}
                         </div>
                       ) : (
                         <img src={authorAvatar} alt={authorName} className="w-10 h-10 rounded-full object-cover" />
@@ -524,7 +633,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
                     </div>
                   </div>
 
-                  <p className="text-sm leading-relaxed mb-3" style={{ color: '#3a2820', lineHeight: 1.6 }}>{post.content}</p>
+                  <p className="text-sm leading-relaxed mb-3" style={{ color: '#3a2820', lineHeight: 1.6 }}>{post.body}</p>
 
                   <div className="flex flex-wrap gap-1.5 mb-3">
                     {post.tags.map((tag) => (

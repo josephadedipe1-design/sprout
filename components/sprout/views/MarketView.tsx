@@ -35,7 +35,8 @@ interface MarketViewProps {
 }
 
 export default function MarketView({ onOpenListing, triggerNewListing, onNewListingTriggered }: MarketViewProps) {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const postcodeDistrict = (profile as any)?.postcode_district || (profile as any)?.postcode?.split(' ')[0] || '';
   const [dbListings, setDbListings] = useState<DisplayListing[]>([]);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All');
@@ -162,9 +163,10 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
       await supabase.from('posts').insert({
         user_id: user.id,
         type: 'listing',
-        content: `Just listed for sale: ${newListing.title} — ${newListing.condition} condition, ${priceStr}.`,
+        body: `Just listed for sale: ${newListing.title} — ${newListing.condition} condition, ${priceStr}.`,
         tags: ['forsale', newListing.category.toLowerCase()],
-        anonymous: false,
+        is_anonymous: false,
+        postcode_district: postcodeDistrict,
       });
 
       setNewListing({ title: '', category: 'Toys', price: '', free: false, condition: 'Good', description: '' });

@@ -22,6 +22,7 @@ interface NewPostViewProps {
 
 export default function NewPostView({ onBack, onPublish, onListInMarket }: NewPostViewProps) {
   const { user, profile } = useAuth();
+  const postcodeDistrict = (profile as any)?.postcode_district || profile?.postcode?.split(' ')[0] || '';
   const [step, setStep] = useState<'type' | 'compose'>('type');
   const [postType, setPostType] = useState('');
   const [content, setContent] = useState('');
@@ -42,9 +43,10 @@ export default function NewPostView({ onBack, onPublish, onListInMarket }: NewPo
     const { error: insertError } = await supabase.from('posts').insert({
       user_id: user.id,
       type: postType,
-      content: content.trim(),
+      body: content.trim(),
       tags: selectedTags,
-      anonymous,
+      is_anonymous: anonymous,
+      postcode_district: postcodeDistrict,
     });
 
     if (insertError) {

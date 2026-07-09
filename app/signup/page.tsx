@@ -5,96 +5,129 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   Leaf, ArrowLeft, ArrowRight, Check, MapPin, Baby, Heart,
-  Users, Calendar, Plus, Eye, EyeOff, Star, Sun, Smile, Upload,
+  Users, Plus, Eye, EyeOff, Upload, Loader2, Star, Sun, Smile,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { AGE_LABEL_TO_MONTHS } from '@/lib/profiles';
 
-const STEPS = [
-  { id: 1, title: 'Create your account', sub: 'Join thousands of parents nearby' },
-  { id: 2, title: 'About your family', sub: 'Help us personalise your experience' },
-  { id: 3, title: 'Your location', sub: 'Connect with parents near you' },
-  { id: 4, title: 'Profile photo', sub: 'Put a face to your name' },
-  { id: 5, title: 'Your interests', sub: 'What topics matter most to you?' },
-  { id: 6, title: 'Almost there!', sub: 'Take a look at your details before we set you up.' },
-  { id: 7, title: "You're all set!", sub: 'Welcome to the Sprout community' },
-];
+// Steps 1–7 are data-collection; step 8 is the confirmation screen.
+const TOTAL_STEPS = 8;
 
 const PARENT_STAGES = [
   { id: 'expecting', title: 'Expecting', desc: "I'm pregnant and due soon", Icon: Baby },
-  { id: 'parent', title: 'Already a parent', desc: 'I have a child or children aged 0–5', Icon: Heart },
-  { id: 'both', title: 'Both', desc: "I have a child or children and I'm expecting again", Icon: Users },
+  { id: 'parent',   title: 'Already a parent', desc: 'I have a child or children aged 0–5', Icon: Heart },
+  { id: 'both',     title: 'Both', desc: "I have a child or children and I'm expecting again", Icon: Users },
 ];
 
 const CHILD_AGES = ['Under 1 year', '1 year', '2 years', '3 years', '4 years', '5 years'];
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-
-const PRESET_AVATARS = [
-  { id: 'leaf',  Icon: Leaf,  label: 'Leaf',  bg: '#d6ede3', color: '#2d7a52' },
-  { id: 'star',  Icon: Star,  label: 'Star',  bg: '#fdf0cc', color: '#b07d10' },
-  { id: 'sun',   Icon: Sun,   label: 'Sun',   bg: '#fde8d8', color: '#c05a20' },
-  { id: 'smile', Icon: Smile, label: 'Smile', bg: '#dce8fb', color: '#2c5faa' },
+const INTERESTS = [
+  'Getting out', 'Feeding', 'Sleep', 'Health', 'Development',
+  'Education & learning', 'Wellbeing & mental health', 'Pregnancy & birth',
+  'Practical life', 'Just for fun',
 ];
 
-const INTERESTS = [
-  'Getting out',
-  'Feeding',
-  'Sleep',
-  'Health',
-  'Development',
-  'Education & learning',
-  'Wellbeing & mental health',
-  'Pregnancy & birth',
-  'Practical life',
-  'Just for fun',
+const PRESET_AVATARS = [
+  { id: 'leaf',  Icon: Leaf,  bg: '#d6ede3', color: '#2d7a52' },
+  { id: 'star',  Icon: Star,  bg: '#fdf0cc', color: '#b07d10' },
+  { id: 'sun',   Icon: Sun,   bg: '#fde8d8', color: '#c05a20' },
+  { id: 'smile', Icon: Smile, bg: '#dce8fb', color: '#2c5faa' },
 ];
 
 export default function SignupPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Navigation
   const [step, setStep] = useState(1);
+
+  // Step 1 — credentials
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
-  const [dueYear, setDueYear] = useState(() => String(new Date().getFullYear()));
-  const [dueMonth, setDueMonth] = useState('');
-  const [children, setChildren] = useState<string[]>(['']);
-  const [uploadedPhoto, setUploadedPhoto] = useState('');
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [locating, setLocating] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
-  const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+  const [signupError, setSignupError] = useState('');
+  const [signingUp, setSigningUp] = useState(false);
+  const [userId, setUserId] = useState('');
+
+  // Step 2 — name
+  const [fullName, setFullName] = useState('');
+
+  // Step 3 — location
+  const [postcode, setPostcode] = useState('');
+  const [neighborhood, setNeighborhood] = useState('');
+  const [city, setCity] = useState('');
   const [geocoding, setGeocoding] = useState(false);
   const [geocodeError, setGeocodeError] = useState('');
   const [postcodeValidated, setPostcodeValidated] = useState(false);
+
+  // Step 4 — parent type
+  const [parentStage, setParentStage] = useState('');
+
+  // Step 5 — due date / children
+  const [dueYear, setDueYear] = useState(() => String(new Date().getFullYear()));
+  const [dueMonth, setDueMonth] = useState('');
+  const [children, setChildren] = useState<string[]>(['']);
+
+  // Step 6 — interests
+  const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+
+  // Step 7 — photo
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState('');
+  const [avatarId, setAvatarId] = useState('');
   const [avatarUploadFailed, setAvatarUploadFailed] = useState(false);
-  const [form, setForm] = useState({
-    name: '', email: '', password: '',
-    parentStage: '',
-    postcode: '',
-    neighborhood: '',
-    city: '',
-    avatarId: '',
-  });
 
-  const progress = ((step - 1) / (STEPS.length - 1)) * 100;
-  const showDue = form.parentStage === 'expecting' || form.parentStage === 'both';
-  const showChildren = form.parentStage === 'parent' || form.parentStage === 'both';
+  // Submission
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+
+  // ── Derived ──────────────────────────────────────────────────────────────
   const passwordValid =
-    form.password.length >= 8 &&
-    /[a-zA-Z]/.test(form.password) &&
-    /[0-9]/.test(form.password) &&
-    /[^a-zA-Z0-9]/.test(form.password);
-  const step1Complete = form.name.trim() !== '' && form.email.trim() !== '' && passwordValid;
-  const step3Complete = postcodeValidated;
+    password.length >= 8 &&
+    /[a-zA-Z]/.test(password) &&
+    /[0-9]/.test(password) &&
+    /[^a-zA-Z0-9]/.test(password);
 
-  function setChildAge(index: number, age: string) {
-    setChildren(prev => { const n = [...prev]; n[index] = age; return n; });
-  }
+  const showDue = parentStage === 'expecting' || parentStage === 'both';
+  const showChildren = parentStage === 'parent' || parentStage === 'both';
 
+  const step5Complete = (() => {
+    if (!parentStage) return false;
+    if (showDue && !dueMonth) return false;
+    if (showChildren && !children.some(c => c !== '')) return false;
+    return true;
+  })();
+
+  const progress = ((step - 1) / (TOTAL_STEPS - 1)) * 100;
+
+  const stepTitle = [
+    '', // placeholder for 1-index
+    'Create your account',
+    'What should we call you?',
+    'Where are you based?',
+    'Tell us about your family',
+    showDue ? 'When are you due?' : 'Tell us about your children',
+    'What interests you?',
+    'Add a profile photo',
+    "You're all set!",
+  ][step] ?? '';
+
+  const stepSub = [
+    '',
+    'Join thousands of parents nearby',
+    'Help other parents recognise you',
+    'Connect with parents near you',
+    'Help us personalise your experience',
+    showDue ? 'We\'ll keep you connected with others at the same stage' : 'So parents with similar-aged children can find you',
+    'We\'ll use this to personalise your feed',
+    'Put a face to your name (you can always add one later)',
+    'Welcome to the Sprout community',
+  ][step] ?? '';
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
   async function validatePostcode(raw: string) {
     const pc = raw.trim().toUpperCase();
     if (!pc) { setGeocodeError(''); setPostcodeValidated(false); return; }
-    // UK full postcode: outward + inward (requires space or run-together like SW1A1AA)
     const fullPattern = /^[A-Z]{1,2}[0-9][0-9A-Z]?\s?[0-9][A-Z]{2}$/;
     if (!fullPattern.test(pc)) {
       setPostcodeValidated(false);
@@ -108,14 +141,9 @@ export default function SignupPage() {
       const data = await res.json();
       if (data.status === 200 && data.result) {
         const { admin_ward, parliamentary_constituency, admin_district, region } = data.result;
-        const neighborhood = admin_ward || parliamentary_constituency || '';
-        const city = admin_district || region || '';
-        setForm(f => ({
-          ...f,
-          postcode: pc,
-          neighborhood,
-          city,
-        }));
+        setPostcode(pc);
+        setNeighborhood(admin_ward || parliamentary_constituency || '');
+        setCity(admin_district || region || '');
         setPostcodeValidated(true);
         setGeocodeError('');
       } else {
@@ -129,189 +157,164 @@ export default function SignupPage() {
     setGeocoding(false);
   }
 
-  function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setAvatarFile(file);
     const reader = new FileReader();
-    reader.onload = ev => setUploadedPhoto(ev.target?.result as string);
+    reader.onload = ev => setPhotoPreview(ev.target?.result as string);
     reader.readAsDataURL(file);
-    setForm(f => ({ ...f, avatarId: '' }));
   }
 
-  function handleUseLocation() {
-    if (!navigator.geolocation) return;
-    setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        try {
-          const res = await fetch(
-            `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${pos.coords.latitude}&longitude=${pos.coords.longitude}&localityLanguage=en`
-          );
-          const data = await res.json();
-          if (data.postcode) {
-            setForm(f => ({ ...f, postcode: data.postcode }));
-            await validatePostcode(data.postcode);
-          }
-        } catch { /* fallback: user types manually */ }
-        setLocating(false);
-      },
-      () => setLocating(false),
-      { timeout: 10000 }
-    );
+  function setChildAge(index: number, age: string) {
+    setChildren(prev => { const n = [...prev]; n[index] = age; return n; });
   }
 
-  async function handleNext() {
-    if (step === STEPS.length - 1) {
-      // Going from step 5 → 6: create account
-      setSubmitting(true);
-      setError('');
-      try {
-        // Postcode is required — it drives the generated postcode_district column.
-        if (!form.postcode.trim()) {
-          setStep(3);
-          setError('Please enter your postcode before continuing.');
-          return;
-        }
+  // ── Step handlers ─────────────────────────────────────────────────────────
 
-        const { data: authData, error: signUpError } = await supabase.auth.signUp({
-          email: form.email,
-          password: form.password,
-        });
-        if (signUpError) throw signUpError;
-        if (!authData.user) throw new Error('Sign up failed. Please try again.');
+  // Step 1 → create auth user, then advance to step 2
+  async function handleStep1() {
+    setSigningUp(true);
+    setSignupError('');
+    try {
+      const { data: authData, error: signUpError } = await supabase.auth.signUp({ email, password });
+      if (signUpError) throw signUpError;
+      if (!authData.user) throw new Error('Sign up failed. Please try again.');
 
-        // Confirm a valid session exists before any authenticated DB write.
-        // supabase.auth.getUser() validates the JWT with the server — this is
-        // the only reliable way to confirm auth.uid() will be set when the
-        // profiles INSERT runs. signUp returns session: null when email
-        // confirmation is enabled, which would leave auth.uid() as null and
-        // violate the RLS policy (WITH CHECK (auth.uid() = id)).
-        const { data: { user }, error: getUserError } = await supabase.auth.getUser();
-        if (getUserError || !user) {
-          // No confirmed session (email confirmation likely required).
-          // Do not attempt the INSERT — advance to the final step instead.
-          setStep(s => s + 1);
-          return;
-        }
-
-        // Use the server-confirmed user ID so it always matches auth.uid().
-        const userId = user.id;
-
-        const dueDate = showDue && dueMonth
-          ? `${dueYear}-${String(MONTHS.indexOf(dueMonth) + 1).padStart(2, '0')}-01`
-          : null;
-
-        // Upload avatar if user selected one
-        let avatarUrl = '';
-        if (avatarFile) {
-          try {
-            const ext = avatarFile.name.split('.').pop() ?? 'jpg';
-            const path = `${userId}/avatar.${ext}`;
-            const { error: uploadError } = await supabase.storage
-              .from('avatars')
-              .upload(path, avatarFile, { upsert: true });
-            if (uploadError) {
-              setAvatarUploadFailed(true);
-            } else {
-              const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path);
-              avatarUrl = publicUrl;
-            }
-          } catch {
-            setAvatarUploadFailed(true);
-          }
-        }
-
-        // Geocode postcode to get lat/lng + fill in neighborhood/city if needed
-        let lat: number | undefined;
-        let lng: number | undefined;
-        let neighborhood = form.neighborhood;
-        let city = form.city;
-        if (form.postcode) {
-          try {
-            const geoRes = await fetch(`https://api.postcodes.io/postcodes/${encodeURIComponent(form.postcode.trim())}`);
-            const geoData = await geoRes.json();
-            if (geoData.status === 200 && geoData.result) {
-              lat = geoData.result.latitude;
-              lng = geoData.result.longitude;
-              if (!neighborhood) neighborhood = geoData.result.admin_ward || geoData.result.parliamentary_constituency || '';
-              if (!city) city = geoData.result.admin_district || geoData.result.region || '';
-            }
-          } catch { /* non-fatal */ }
-        }
-
-        const nameParts = (form.name || '').trim().split(/\s+/);
-        const firstName = nameParts[0] || 'Parent';
-        const lastInitial = nameParts.length > 1 ? nameParts[nameParts.length - 1][0].toUpperCase() : '';
-
-        const profilePayload: Record<string, unknown> = {
-          id: userId,
-          name: form.name || 'New Parent',
-          first_name: firstName,
-          last_initial: lastInitial,
-          postcode: form.postcode,
-          postcode_district: form.postcode.split(' ')[0],
-          neighborhood,
-          city,
-          interests: selectedInterests,
-          parent_type: form.parentStage || 'parent',
-          due_date: dueDate,
-          bio: '',
-          avatar_url: avatarUrl,
-        };
-        if (lat !== undefined) { profilePayload.lat = lat; profilePayload.lng = lng; }
-        console.log('[signup] profile insert payload:', profilePayload);
-        const { error: profileError } = await supabase.from('profiles').insert(profilePayload);
-        if (profileError) throw profileError;
-
-        // Insert each child as a separate row in the children table
-        const childrenToInsert = children
-          .filter(Boolean)
-          .map(label => ({
-            user_id: userId,
-            age_months: AGE_LABEL_TO_MONTHS[label] ?? 0,
-          }));
-        if (childrenToInsert.length > 0) {
-          await supabase.from('children').insert(childrenToInsert);
-        }
-
-      setStep(s => s + 1);
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Something went wrong. Please try again.';
-        if (msg.toLowerCase().includes('weak') || msg.toLowerCase().includes('pwned') || msg.toLowerCase().includes('easy to guess')) {
-          setStep(1);
-          setError('That password is too common — please choose something more unique.');
-        } else {
-          setError(msg);
-        }
-      } finally {
-        setSubmitting(false);
+      const { data: { user: confirmedUser }, error: getUserError } = await supabase.auth.getUser();
+      if (getUserError || !confirmedUser) {
+        // Email confirmation required — advance anyway, profile insert will fail gracefully
+        setStep(2);
+        return;
       }
-    } else if (step < STEPS.length) {
-      setStep(s => s + 1);
-    } else {
-      router.push('/app?welcome=1');
+      setUserId(confirmedUser.id);
+      setStep(2);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Something went wrong. Please try again.';
+      if (msg.toLowerCase().includes('weak') || msg.toLowerCase().includes('pwned') || msg.toLowerCase().includes('easy to guess')) {
+        setSignupError('That password is too common — please choose something more unique.');
+      } else {
+        setSignupError(msg);
+      }
+    } finally {
+      setSigningUp(false);
     }
   }
 
-  function back() { if (step > 1) setStep(s => s - 1); }
+  // Step 7 → upload photo + insert profile, then advance to step 8
+  async function handleFinalSubmit() {
+    if (submitting) return;
+    setSubmitting(true);
+    setSubmitError('');
+    try {
+      const uid = userId || (await supabase.auth.getUser()).data.user?.id;
+      if (!uid) throw new Error('No user session found. Please try again.');
 
-  const current = STEPS[step - 1];
+      // Upload avatar if provided
+      let avatarUrl = '';
+      if (avatarFile) {
+        try {
+          const ext = avatarFile.name.split('.').pop() ?? 'jpg';
+          const path = `${uid}/avatar.${ext}`;
+          const { error: uploadError } = await supabase.storage
+            .from('avatars')
+            .upload(path, avatarFile, { upsert: true });
+          if (uploadError) {
+            setAvatarUploadFailed(true);
+          } else {
+            const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path);
+            avatarUrl = publicUrl;
+          }
+        } catch {
+          setAvatarUploadFailed(true);
+        }
+      }
 
-  const familyLines = (): string[] => {
-    const lines: string[] = [];
-    if (showChildren) children.filter(Boolean).forEach((c, i) => lines.push(`Child ${i + 1}: ${c}`));
-    if (showDue && dueMonth) lines.push(`Expecting — due ${dueMonth} ${dueYear}`);
-    return lines;
-  };
+      // Geocode postcode for lat/lng
+      let lat: number | undefined;
+      let lng: number | undefined;
+      if (postcode) {
+        try {
+          const geoRes = await fetch(`https://api.postcodes.io/postcodes/${encodeURIComponent(postcode.trim())}`);
+          const geoData = await geoRes.json();
+          if (geoData.status === 200 && geoData.result) {
+            lat = geoData.result.latitude;
+            lng = geoData.result.longitude;
+          }
+        } catch { /* non-fatal */ }
+      }
 
-  const postcodeArea = form.postcode ? form.postcode.trim().split(/\s/)[0].toUpperCase() : '—';
-  const ActiveAvatar = form.avatarId ? PRESET_AVATARS.find(a => a.id === form.avatarId) : null;
+      const nameParts = fullName.trim().split(/\s+/);
+      const firstName = nameParts[0] || 'Parent';
+      const lastInitial = nameParts.length > 1 ? nameParts[nameParts.length - 1][0].toUpperCase() : '';
+      const dueDate = showDue && dueMonth
+        ? `${dueYear}-${String(MONTHS.indexOf(dueMonth) + 1).padStart(2, '0')}-01`
+        : null;
+
+      const profilePayload: Record<string, unknown> = {
+        id: uid,
+        name: fullName || 'New Parent',
+        first_name: firstName,
+        last_initial: lastInitial,
+        postcode,
+        postcode_district: postcode.split(' ')[0] || '',
+        neighborhood,
+        city,
+        interests: selectedInterests,
+        parent_type: parentStage || 'parent',
+        due_date: dueDate,
+        bio: '',
+        avatar_url: avatarUrl,
+      };
+      if (lat !== undefined) { profilePayload.lat = lat; profilePayload.lng = lng; }
+
+      const { error: profileError } = await supabase.from('profiles').insert(profilePayload);
+      if (profileError) throw profileError;
+
+      // Insert children rows
+      const childrenToInsert = children
+        .filter(Boolean)
+        .map(label => ({ user_id: uid, age_months: AGE_LABEL_TO_MONTHS[label] ?? 0 }));
+      if (childrenToInsert.length > 0) {
+        await supabase.from('children').insert(childrenToInsert);
+      }
+
+      setStep(8);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Something went wrong. Please try again.';
+      setSubmitError(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleNext() {
+    if (step === 1) { await handleStep1(); return; }
+    if (step === 7) { await handleFinalSubmit(); return; }
+    if (step === 8) { router.push('/app?welcome=1'); return; }
+    setStep(s => s + 1);
+  }
+
+  function back() {
+    if (step > 1 && step < 8) setStep(s => s - 1);
+  }
+
+  const canAdvance = (() => {
+    if (step === 1) return email.trim() !== '' && passwordValid && !signingUp;
+    if (step === 2) return fullName.trim() !== '';
+    if (step === 3) return postcodeValidated;
+    if (step === 4) return parentStage !== '';
+    if (step === 5) return step5Complete;
+    return true; // steps 6, 7, 8 can always advance (interests/photo optional)
+  })();
+
+  const isBusy = signingUp || submitting;
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12" style={{ background: 'var(--bg)' }}>
       <div className="w-full max-w-md">
-        {/* Header */}
+
+        {/* Logo + step counter */}
         <div className="flex items-center justify-between mb-8">
           <Link href="/" className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'var(--brand)' }}>
@@ -319,33 +322,46 @@ export default function SignupPage() {
             </div>
             <span className="font-bold" style={{ color: 'var(--brand)' }}>Sprout</span>
           </Link>
-          <span className="text-sm" style={{ color: '#9a8070' }}>Step {step} of {STEPS.length}</span>
+          {step < 8 && (
+            <span className="text-sm" style={{ color: '#9a8070' }}>Step {step} of 7</span>
+          )}
         </div>
 
-        {/* Progress bar */}
-        <div className="w-full h-1.5 rounded-full mb-8" style={{ background: '#e8e4de' }}>
-          <div className="h-1.5 rounded-full transition-all duration-500" style={{ background: 'var(--brand)', width: `${progress}%` }} />
-        </div>
+        {/* Progress bar (steps 1–7 only) */}
+        {step < 8 && (
+          <div className="w-full h-1.5 rounded-full mb-8" style={{ background: '#e8e4de' }}>
+            <div
+              className="h-1.5 rounded-full transition-all duration-500"
+              style={{ background: 'var(--brand)', width: `${((step - 1) / 6) * 100}%` }}
+            />
+          </div>
+        )}
 
         <div className="card-sprout p-8">
-          <h2 className="text-2xl font-bold mb-1" style={{ color: '#2a1f18' }}>{current.title}</h2>
-          <p className="mb-7 text-sm" style={{ color: '#7a6055' }}>{current.sub}</p>
+          {step < 8 && (
+            <>
+              <h2 className="text-2xl font-bold mb-1" style={{ color: '#2a1f18' }}>{stepTitle}</h2>
+              <p className="mb-7 text-sm" style={{ color: '#7a6055' }}>{stepSub}</p>
+            </>
+          )}
 
-          {/* ── Step 1: Account ── */}
+          {/* ── Step 1: Email + Password ── */}
           {step === 1 && (
             <div className="space-y-5">
-              {error && (
+              {signupError && (
                 <div className="p-3 rounded-xl text-sm font-medium" style={{ background: '#FEF2F2', color: '#991B1B', border: '1px solid #FECACA' }}>
-                  {error}
+                  {signupError}
                 </div>
               )}
               <div>
-                <label className="block text-sm font-medium mb-1.5" style={{ color: '#4a3328' }}>Full name</label>
-                <input className="input-sprout" placeholder="Jane Smith" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-              </div>
-              <div>
                 <label className="block text-sm font-medium mb-1.5" style={{ color: '#4a3328' }}>Email</label>
-                <input className="input-sprout" type="email" placeholder="jane@example.com" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
+                <input
+                  className="input-sprout"
+                  type="email"
+                  placeholder="jane@example.com"
+                  value={email}
+                  onChange={e => { setEmail(e.target.value); setSignupError(''); }}
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1.5" style={{ color: '#4a3328' }}>Password</label>
@@ -354,25 +370,29 @@ export default function SignupPage() {
                     className="input-sprout pr-11"
                     type={showPw ? 'text' : 'password'}
                     placeholder="At least 8 characters"
-                    value={form.password}
-                    onChange={e => { setForm(f => ({ ...f, password: e.target.value })); setError(''); }}
+                    value={password}
+                    onChange={e => { setPassword(e.target.value); setSignupError(''); }}
                   />
-                  <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: '#9a7060' }} onClick={() => setShowPw(!showPw)}>
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 -translate-y-1/2"
+                    style={{ color: '#9a7060' }}
+                    onClick={() => setShowPw(s => !s)}
+                  >
                     {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
                 <p className="mt-1.5 text-xs" style={{ color: '#9a8070' }}>Use a mix of letters, numbers and symbols.</p>
-                {form.password.length > 0 && (
+                {password.length > 0 && (
                   <div className="mt-2.5 space-y-1.5">
                     {[
-                      { label: 'At least 8 characters', met: form.password.length >= 8 },
-                      { label: 'Contains a letter', met: /[a-zA-Z]/.test(form.password) },
-                      { label: 'Contains a number', met: /[0-9]/.test(form.password) },
-                      { label: 'Contains a symbol (!@#$…)', met: /[^a-zA-Z0-9]/.test(form.password) },
+                      { label: 'At least 8 characters', met: password.length >= 8 },
+                      { label: 'Contains a letter', met: /[a-zA-Z]/.test(password) },
+                      { label: 'Contains a number', met: /[0-9]/.test(password) },
+                      { label: 'Contains a symbol (!@#$…)', met: /[^a-zA-Z0-9]/.test(password) },
                     ].map(({ label, met }) => (
                       <div key={label} className="flex items-center gap-2">
-                        <div className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0"
-                          style={{ background: met ? '#d6ede3' : '#f0ece5' }}>
+                        <div className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: met ? '#d6ede3' : '#f0ece5' }}>
                           <Check className="w-2.5 h-2.5" style={{ color: met ? '#2d7a52' : '#c4b0a0' }} />
                         </div>
                         <span className="text-xs" style={{ color: met ? '#2d7a52' : '#9a8070' }}>{label}</span>
@@ -384,45 +404,117 @@ export default function SignupPage() {
             </div>
           )}
 
-          {/* ── Step 2: Family ── */}
+          {/* ── Step 2: Name ── */}
           {step === 2 && (
-            <div className="space-y-6">
+            <div className="space-y-5">
               <div>
-                <p className="text-sm font-semibold mb-3" style={{ color: '#4a3328' }}>What describes you best?</p>
-                <div className="space-y-2.5">
-                  {PARENT_STAGES.map(({ id, title, desc, Icon }) => {
-                    const sel = form.parentStage === id;
-                    return (
-                      <button
-                        key={id}
-                        onClick={() => { setForm(f => ({ ...f, parentStage: id })); setDueMonth(''); setChildren(['']); }}
-                        className="w-full flex items-center gap-4 p-4 rounded-xl border text-left transition-all"
-                        style={{ borderColor: sel ? 'var(--brand)' : 'var(--border-color)', background: sel ? 'var(--brand-light)' : 'white' }}
-                      >
-                        <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: sel ? 'var(--brand)' : '#f0ece5' }}>
-                          <Icon className="w-5 h-5" style={{ color: sel ? 'white' : '#9a7060' }} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-sm" style={{ color: sel ? 'var(--brand)' : '#2a1f18' }}>{title}</p>
-                          <p className="text-xs mt-0.5" style={{ color: '#9a8070' }}>{desc}</p>
-                        </div>
-                        {sel && (
-                          <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'var(--brand)' }}>
-                            <Check className="w-3 h-3 text-white" />
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
+                <label className="block text-sm font-medium mb-1.5" style={{ color: '#4a3328' }}>Full name</label>
+                <input
+                  className="input-sprout"
+                  placeholder="Jane Smith"
+                  value={fullName}
+                  onChange={e => setFullName(e.target.value)}
+                  autoFocus
+                />
+                {fullName.trim() && (() => {
+                  const parts = fullName.trim().split(/\s+/);
+                  const fn = parts[0];
+                  const li = parts.length > 1 ? parts[parts.length - 1][0].toUpperCase() + '.' : '';
+                  return (
+                    <p className="text-xs mt-2" style={{ color: '#9a8070' }}>
+                      You&apos;ll appear as <strong style={{ color: '#5a4035' }}>{fn}{li ? ' ' + li : ''}</strong> in the community
+                    </p>
+                  );
+                })()}
               </div>
+            </div>
+          )}
 
+          {/* ── Step 3: Location ── */}
+          {step === 3 && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold mb-1" style={{ color: '#4a3328' }}>Your postcode</label>
+                <p className="text-xs mb-3 leading-relaxed" style={{ color: '#9a8070' }}>
+                  We only ever show your area — never your exact address or full postcode.
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    className="input-sprout flex-1 uppercase"
+                    placeholder="e.g. SW1A 1AA"
+                    value={postcode}
+                    onChange={e => {
+                      setPostcode(e.target.value.toUpperCase());
+                      setPostcodeValidated(false);
+                      setGeocodeError('');
+                    }}
+                    onBlur={e => { if (e.target.value.trim()) validatePostcode(e.target.value); }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => validatePostcode(postcode)}
+                    disabled={!postcode.trim() || geocoding}
+                    className="px-4 py-2 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80 flex-shrink-0"
+                    style={{
+                      background: postcodeValidated ? '#d6ede3' : 'var(--brand-light)',
+                      color: postcodeValidated ? '#2d7a52' : 'var(--brand)',
+                      border: `1px solid ${postcodeValidated ? '#a7d9be' : '#e8c9b4'}`,
+                      opacity: !postcode.trim() || geocoding ? 0.5 : 1,
+                    }}
+                  >
+                    {geocoding ? '…' : postcodeValidated ? 'Valid ✓' : 'Check'}
+                  </button>
+                </div>
+                {geocodeError && (
+                  <p className="text-xs mt-1.5 font-medium" style={{ color: '#b45309' }}>{geocodeError}</p>
+                )}
+                {postcodeValidated && city && (
+                  <p className="text-xs mt-1.5 font-medium" style={{ color: '#059669' }}>
+                    Found: {[neighborhood, city].filter(Boolean).join(', ')}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ── Step 4: Parent type ── */}
+          {step === 4 && (
+            <div className="space-y-2.5">
+              {PARENT_STAGES.map(({ id, title, desc, Icon }) => {
+                const sel = parentStage === id;
+                return (
+                  <button
+                    key={id}
+                    onClick={() => { setParentStage(id); setDueMonth(''); setChildren(['']); }}
+                    className="w-full flex items-center gap-4 p-4 rounded-xl border text-left transition-all"
+                    style={{ borderColor: sel ? 'var(--brand)' : 'var(--border-color)', background: sel ? 'var(--brand-light)' : 'white' }}
+                  >
+                    <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: sel ? 'var(--brand)' : '#f0ece5' }}>
+                      <Icon className="w-5 h-5" style={{ color: sel ? 'white' : '#9a7060' }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm" style={{ color: sel ? 'var(--brand)' : '#2a1f18' }}>{title}</p>
+                      <p className="text-xs mt-0.5" style={{ color: '#9a8070' }}>{desc}</p>
+                    </div>
+                    {sel && (
+                      <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'var(--brand)' }}>
+                        <Check className="w-3 h-3 text-white" />
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* ── Step 5: Due date / Child ages ── */}
+          {step === 5 && (
+            <div className="space-y-6">
               {showDue && (
                 <div>
                   <p className="text-sm font-semibold mb-3" style={{ color: '#4a3328' }}>When are you due?</p>
                   {dueMonth ? (
                     <div className="flex items-center gap-3 p-4 rounded-xl" style={{ background: 'var(--brand-light)', border: '1px solid #e8c9b4' }}>
-                      <Calendar className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--brand)' }} />
                       <span className="font-semibold text-sm" style={{ color: 'var(--brand)' }}>Due {dueMonth} {dueYear}</span>
                       <button className="ml-auto text-xs underline" style={{ color: '#9a7060' }} onClick={() => setDueMonth('')}>Change</button>
                     </div>
@@ -430,11 +522,9 @@ export default function SignupPage() {
                     <div className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--border-color)' }}>
                       {(() => {
                         const now = new Date();
-                        const startMonth = now.getMonth(); // 0-indexed
-                        const startYear = now.getFullYear();
                         const validMonths: { month: string; year: number }[] = [];
                         for (let i = 0; i < 10; i++) {
-                          const d = new Date(startYear, startMonth + i, 1);
+                          const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
                           validMonths.push({ month: MONTHS[d.getMonth()], year: d.getFullYear() });
                         }
                         const years = Array.from(new Set(validMonths.map(v => v.year)));
@@ -495,130 +585,11 @@ export default function SignupPage() {
             </div>
           )}
 
-          {/* ── Step 3: Location ── */}
-          {step === 3 && (
-            <div className="space-y-4">
-              {error && (
-                <div className="p-3 rounded-xl text-sm font-medium" style={{ background: '#FEF2F2', color: '#991B1B', border: '1px solid #FECACA' }}>
-                  {error}
-                </div>
-              )}
-              <div>
-                <label className="block text-sm font-semibold mb-1" style={{ color: '#4a3328' }}>Where are you based?</label>
-                <p className="text-xs mb-3 leading-relaxed" style={{ color: '#9a8070' }}>
-                  We only ever show your area — never your exact address or full postcode.
-                </p>
-                <div className="flex gap-2">
-                  <input
-                    className="input-sprout flex-1 uppercase"
-                    placeholder="Enter full postcode — e.g. SW1A 1AA"
-                    value={form.postcode}
-                    onChange={e => {
-                      setForm(f => ({ ...f, postcode: e.target.value.toUpperCase() }));
-                      setPostcodeValidated(false);
-                      setGeocodeError('');
-                    }}
-                    onBlur={e => { if (e.target.value.trim()) validatePostcode(e.target.value); }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => validatePostcode(form.postcode)}
-                    disabled={!form.postcode.trim() || geocoding}
-                    className="px-4 py-2 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80 flex-shrink-0"
-                    style={{
-                      background: postcodeValidated ? '#d6ede3' : 'var(--brand-light)',
-                      color: postcodeValidated ? '#2d7a52' : 'var(--brand)',
-                      border: `1px solid ${postcodeValidated ? '#a7d9be' : '#e8c9b4'}`,
-                      opacity: !form.postcode.trim() || geocoding ? 0.5 : 1,
-                    }}
-                  >
-                    {geocoding ? '…' : postcodeValidated ? 'Valid' : 'Check'}
-                  </button>
-                </div>
-                {geocodeError && (
-                  <p className="text-xs mt-1.5 font-medium" style={{ color: '#b45309' }}>{geocodeError}</p>
-                )}
-                {postcodeValidated && form.city && (
-                  <p className="text-xs mt-1.5 font-medium" style={{ color: '#059669' }}>
-                    Found: {[form.neighborhood, form.city].filter(Boolean).join(', ')}
-                  </p>
-                )}
-              </div>
-              <div
-                onClick={handleUseLocation}
-                className="flex items-center gap-3 p-4 rounded-xl cursor-pointer transition-opacity hover:opacity-80"
-                style={{ background: 'var(--brand-light)', border: '1px dashed #e8c9b4', opacity: locating ? 0.7 : 1 }}
-              >
-                <MapPin className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--brand)' }} />
-                <p className="text-sm font-semibold" style={{ color: 'var(--brand)' }}>
-                  {locating ? 'Getting location…' : 'Use my current location'}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* ── Step 4: Photo / Avatar ── */}
-          {step === 4 && (
-            <div className="space-y-6">
-              <div className="flex justify-center">
-                <div
-                  className="w-24 h-24 rounded-full flex items-center justify-center overflow-hidden"
-                  style={{ background: 'var(--brand-light)', border: '2px dashed #e8c9b4' }}
-                >
-                  {uploadedPhoto ? (
-                    <img src={uploadedPhoto} alt="Profile" className="w-full h-full object-cover" />
-                  ) : ActiveAvatar ? (
-                    <ActiveAvatar.Icon className="w-10 h-10" style={{ color: ActiveAvatar.color }} />
-                  ) : (
-                    <span className="text-3xl font-bold" style={{ color: 'var(--brand)' }}>
-                      {form.name ? form.name[0].toUpperCase() : '?'}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
-                <button
-                  className="w-full flex items-center justify-center gap-2.5 py-3 rounded-xl border font-semibold text-sm transition-colors hover:opacity-80"
-                  style={{ borderColor: 'var(--brand)', color: 'var(--brand)', background: 'var(--brand-light)' }}
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <Upload className="w-4 h-4" /> Upload a photo
-                </button>
-              </div>
-
-              <div>
-                <p className="text-sm font-semibold mb-3" style={{ color: '#4a3328' }}>Or choose an avatar</p>
-                <div className="grid grid-cols-4 gap-3">
-                  {PRESET_AVATARS.map(({ id, Icon, label, bg, color }) => {
-                    const sel = form.avatarId === id && !uploadedPhoto;
-                    return (
-                      <button
-                        key={id}
-                        onClick={() => { setForm(f => ({ ...f, avatarId: id })); setUploadedPhoto(''); }}
-                        className="aspect-square rounded-2xl flex items-center justify-center transition-all"
-                        style={{ background: sel ? bg : bg + '99', border: `2px solid ${sel ? color : 'transparent'}` }}
-                        title={label}
-                      >
-                        <Icon className="w-7 h-7" style={{ color }} />
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <button className="w-full text-sm font-medium py-1 text-center" style={{ color: '#b8a090' }} onClick={handleNext}>
-                Skip for now
-              </button>
-            </div>
-          )}
-
-          {/* ── Step 5: Interests ── */}
-          {step === 5 && (
+          {/* ── Step 6: Interests ── */}
+          {step === 6 && (
             <div className="space-y-4">
               <p className="text-sm leading-relaxed" style={{ color: '#7a6055' }}>
-                Select the topics that matter most to you. We&apos;ll use these to personalise your feed and connect you with parents who share your interests.
+                Select the topics that matter most to you. We&apos;ll use these to personalise your feed.
               </p>
               <div className="flex flex-wrap gap-2">
                 {INTERESTS.map((interest) => {
@@ -647,61 +618,91 @@ export default function SignupPage() {
             </div>
           )}
 
-          {/* ── Step 6: Review ── */}
-          {step === 6 && (
-            <div className="space-y-3">
-              {error && (
+          {/* ── Step 7: Photo ── */}
+          {step === 7 && (
+            <div className="space-y-5">
+              {submitError && (
                 <div className="p-3 rounded-xl text-sm font-medium" style={{ background: '#FEF2F2', color: '#991B1B', border: '1px solid #FECACA' }}>
-                  {error}
+                  {submitError}
                 </div>
               )}
-              <div className="p-4 rounded-xl" style={{ background: '#f9f7f4', border: '1px solid var(--border-color)' }}>
-                <p className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: '#b8a090' }}>Name</p>
-                <p className="font-semibold text-sm" style={{ color: '#2a1f18' }}>{form.name || '—'}</p>
-              </div>
-              <div className="p-4 rounded-xl" style={{ background: '#f9f7f4', border: '1px solid var(--border-color)' }}>
-                <p className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: '#b8a090' }}>Child(ren)</p>
-                {familyLines().length > 0 ? familyLines().map((line, i) => (
-                  <p key={i} className="font-semibold text-sm" style={{ color: '#2a1f18' }}>{line}</p>
-                )) : <p className="font-semibold text-sm" style={{ color: '#2a1f18' }}>—</p>}
-              </div>
-              <div className="p-4 rounded-xl" style={{ background: '#f9f7f4', border: '1px solid var(--border-color)' }}>
-                <p className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: '#b8a090' }}>Postcode area</p>
-                <p className="font-semibold text-sm" style={{ color: '#2a1f18' }}>{postcodeArea}</p>
-                {form.postcode && <p className="text-xs mt-0.5" style={{ color: '#b8a090' }}>Area only — full postcode never shown</p>}
-              </div>
-              {selectedInterests.length > 0 && (
-                <div className="p-4 rounded-xl" style={{ background: '#f9f7f4', border: '1px solid var(--border-color)' }}>
-                  <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: '#b8a090' }}>Interests</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {selectedInterests.map(i => (
-                      <span key={i} className="text-xs px-2.5 py-1 rounded-full font-medium" style={{ background: 'var(--brand-light)', color: 'var(--brand)', border: '1px solid #e8c9b4' }}>{i}</span>
-                    ))}
-                  </div>
+              <div className="flex justify-center">
+                <div
+                  className="w-24 h-24 rounded-full flex items-center justify-center overflow-hidden"
+                  style={{ background: 'var(--brand-light)', border: '2px dashed #e8c9b4' }}
+                >
+                  {photoPreview ? (
+                    <img src={photoPreview} alt="Preview" className="w-full h-full object-cover" />
+                  ) : avatarId ? (() => {
+                    const preset = PRESET_AVATARS.find(p => p.id === avatarId);
+                    return preset ? (
+                      <div className="w-full h-full rounded-full flex items-center justify-center" style={{ background: preset.bg }}>
+                        <preset.Icon className="w-10 h-10" style={{ color: preset.color }} />
+                      </div>
+                    ) : null;
+                  })() : (
+                    <span className="text-3xl font-bold" style={{ color: 'var(--brand)' }}>
+                      {fullName ? fullName[0].toUpperCase() : '?'}
+                    </span>
+                  )}
                 </div>
-              )}
+              </div>
+              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
+              <button
+                className="w-full flex items-center justify-center gap-2.5 py-3 rounded-xl border font-semibold text-sm transition-colors hover:opacity-80"
+                style={{ borderColor: 'var(--brand)', color: 'var(--brand)', background: 'var(--brand-light)' }}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload className="w-4 h-4" /> {photoPreview ? 'Change photo' : 'Upload a photo'}
+              </button>
+              <div>
+                <p className="text-sm font-semibold mb-3" style={{ color: '#4a3328' }}>Or choose an icon</p>
+                <div className="grid grid-cols-4 gap-3">
+                  {PRESET_AVATARS.map(({ id, Icon, bg, color }) => {
+                    const sel = avatarId === id && !photoPreview;
+                    return (
+                      <button
+                        key={id}
+                        onClick={() => { setAvatarId(id); setAvatarFile(null); setPhotoPreview(''); }}
+                        className="aspect-square rounded-2xl flex items-center justify-center transition-all hover:scale-105"
+                        style={{ background: bg, border: `2px solid ${sel ? color : 'transparent'}`, outline: sel ? `3px solid ${color}30` : 'none' }}
+                      >
+                        <Icon className="w-7 h-7" style={{ color }} />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <p className="text-center text-xs" style={{ color: '#b8a090' }}>You can always add or change your photo later from your profile.</p>
             </div>
           )}
 
-          {/* ── Step 7: All set ── */}
-          {step === 7 && (
-            <div className="text-center space-y-4">
+          {/* ── Step 8: Confirmation ── */}
+          {step === 8 && (
+            <div className="text-center space-y-5">
               <div className="w-20 h-20 rounded-full mx-auto flex items-center justify-center" style={{ background: 'var(--brand-light)' }}>
                 <Check className="w-10 h-10" style={{ color: 'var(--brand)' }} />
               </div>
-              <p className="text-sm leading-relaxed" style={{ color: '#7a6055' }}>
-                You&apos;re officially part of the Sprout community. Connect with parents near you and start sharing!
-              </p>
+              <div>
+                <h2 className="text-2xl font-bold mb-2" style={{ color: '#2a1f18' }}>
+                  Welcome{fullName ? `, ${fullName.trim().split(/\s+/)[0]}` : ''}!
+                </h2>
+                <p className="text-sm leading-relaxed" style={{ color: '#7a6055' }}>
+                  You&apos;re officially part of the Sprout community. Connect with parents near you and start sharing!
+                </p>
+              </div>
               {avatarUploadFailed && (
                 <p className="text-xs p-3 rounded-xl" style={{ background: '#FFF7ED', color: '#92400E', border: '1px solid #FDE68A' }}>
                   Photo upload didn&apos;t work this time — you can add it from your profile after joining.
                 </p>
               )}
-              <div className="pt-2 space-y-3">
-                {['Feed', 'Market', 'Messages'].map(feature => (
+              <div className="space-y-2.5 pt-1 text-left">
+                {['Community Feed', 'Marketplace', 'Messages & Connections'].map(feature => (
                   <div key={feature} className="flex items-center gap-3 text-sm" style={{ color: '#5a4035' }}>
-                    <Check className="w-4 h-4" style={{ color: 'var(--brand)' }} />
-                    <span>Access to <strong>{feature}</strong></span>
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#d6ede3' }}>
+                      <Check className="w-3 h-3" style={{ color: '#2d7a52' }} />
+                    </div>
+                    <span>{feature}</span>
                   </div>
                 ))}
               </div>
@@ -709,23 +710,27 @@ export default function SignupPage() {
           )}
         </div>
 
-        {/* Nav */}
+        {/* Navigation */}
         <div className="flex items-center justify-between mt-6">
-          {step > 1 ? (
+          {step > 1 && step < 8 ? (
             <button onClick={back} className="flex items-center gap-2 text-sm font-medium" style={{ color: '#7a6055' }}>
               <ArrowLeft className="w-4 h-4" /> Back
             </button>
-          ) : (
+          ) : step === 1 ? (
             <Link href="/" className="text-sm font-medium" style={{ color: '#7a6055' }}>Sign in instead</Link>
+          ) : (
+            <span />
           )}
+
           <button
             onClick={handleNext}
-            className="btn-brand gap-2"
-            disabled={submitting || (step === 1 && !step1Complete) || (step === 3 && !step3Complete)}
-            style={{ opacity: submitting || (step === 1 && !step1Complete) || (step === 3 && !step3Complete) ? 0.45 : 1 }}
+            className="btn-brand gap-2 flex items-center"
+            disabled={!canAdvance || isBusy}
+            style={{ opacity: canAdvance && !isBusy ? 1 : 0.45 }}
           >
-            {submitting ? 'Creating account…' : step === STEPS.length ? 'Get started' : 'Continue'}
-            {!submitting && step < STEPS.length && <ArrowRight className="w-4 h-4" />}
+            {isBusy && <Loader2 className="w-4 h-4 animate-spin" />}
+            {step === 8 ? 'Get started' : step === 7 ? (submitting ? 'Setting up…' : (photoPreview ? 'Finish' : 'Skip & finish')) : step === 1 ? (signingUp ? 'Creating account…' : 'Next') : 'Continue'}
+            {!isBusy && step < 8 && <ArrowRight className="w-4 h-4" />}
           </button>
         </div>
       </div>

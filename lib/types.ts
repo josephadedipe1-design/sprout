@@ -30,9 +30,9 @@ export interface DbPost {
   id: string;
   user_id: string;
   type: string;
-  content: string;
+  body: string;
   tags: string[];
-  anonymous: boolean;
+  is_anonymous: boolean;
   created_at: string;
   profiles?: DbProfile | null;
 }
