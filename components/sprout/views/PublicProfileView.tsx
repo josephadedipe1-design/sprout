@@ -1,8 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowLeft, MapPin, Baby, Star, Heart, UserPlus, MessageCircle, X } from 'lucide-react';
+import { ArrowLeft, MapPin, Baby, Star, Heart, UserPlus, MessageCircle, X, Loader2 } from 'lucide-react';
 import { Profile } from '@/lib/profiles';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/context/AuthContext';
 
 interface PublicProfileViewProps {
   profile: Profile;
@@ -14,7 +16,27 @@ interface PublicProfileViewProps {
 }
 
 export default function PublicProfileView({ profile, onBack, onConnect, onMessage, connected = false, pendingRequest = false }: PublicProfileViewProps) {
+  const { user } = useAuth();
   const [hovered, setHovered] = useState<'accept' | 'decline' | null>(null);
+  const [connecting, setConnecting] = useState(false);
+  const [connectError, setConnectError] = useState('');
+
+  async function handleConnect() {
+    if (!user || !profile.userId) return;
+    setConnecting(true);
+    setConnectError('');
+    const { error } = await supabase
+      .from('connections')
+      .insert({ requester_id: user.id, addressee_id: profile.userId, status: 'pending' });
+    if (error) {
+      console.error('Connection insert error:', error);
+      setConnectError('Could not send request. Please try again.');
+      setConnecting(false);
+      return;
+    }
+    setConnecting(false);
+    onConnect();
+  }
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 pb-24 lg:pb-6">
       {/* Back */}
@@ -115,11 +137,21 @@ export default function PublicProfileView({ profile, onBack, onConnect, onMessag
             </button>
           </>
         ) : (
-          <button onClick={onConnect} className="btn-brand flex-1 text-sm gap-1.5">
-            <UserPlus className="w-4 h-4" /> Connect
+          <button
+            onClick={handleConnect}
+            disabled={connecting}
+            className="btn-brand flex-1 text-sm gap-1.5"
+            style={{ opacity: connecting ? 0.6 : 1 }}
+          >
+            {connecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+            {connecting ? 'Sending…' : 'Connect'}
           </button>
         )}
       </div>
+
+      {connectError && (
+        <p className="text-xs text-center mt-2 font-medium" style={{ color: '#ef4444' }}>{connectError}</p>
+      )}
 
       {/* Message locked state for non-connections */}
       {!connected && (

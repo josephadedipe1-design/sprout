@@ -50,7 +50,8 @@ export default function NewPostView({ onBack, onPublish, onListInMarket }: NewPo
     });
 
     if (insertError) {
-      setError('Failed to publish. Please try again.');
+      console.error('Post insert error:', insertError);
+      setError(insertError.message || 'Failed to publish. Please try again.');
       setPublishing(false);
     } else {
       onPublish();
