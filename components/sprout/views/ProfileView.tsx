@@ -68,7 +68,7 @@ export default function ProfileView({ onEditProfile, onSettings }: ProfileViewPr
 
     async function loadActivity() {
       const [postsRes, listingsRes] = await Promise.all([
-        supabase.from('posts').select('id, content, created_at').eq('user_id', user!.id).order('created_at', { ascending: false }).limit(5),
+        supabase.from('posts').select('id, body, created_at').eq('user_id', user!.id).order('created_at', { ascending: false }).limit(5),
         supabase.from('listings').select('id, title, price, created_at').eq('user_id', user!.id).order('created_at', { ascending: false }).limit(3),
       ]);
 
@@ -79,7 +79,7 @@ export default function ProfileView({ onEditProfile, onSettings }: ProfileViewPr
         type: 'post',
         time: formatRelativeTime(p.created_at),
         created_at: p.created_at,
-        text: p.content.length > 120 ? p.content.slice(0, 120) + '…' : p.content,
+        text: p.body.length > 120 ? p.body.slice(0, 120) + '…' : p.body,
         reactions: 0,
       }));
 

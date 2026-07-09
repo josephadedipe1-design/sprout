@@ -9,7 +9,7 @@ const TRENDING = ['Pediatric dentist', 'Sleep regression', 'Playgroup', 'Baby ca
 
 interface PostResult {
   id: string;
-  content: string;
+  body: string;
   profile: DbProfile | null;
   created_at: string;
 }
@@ -61,9 +61,9 @@ export default function SearchView({ onBack }: SearchViewProps) {
         .limit(5),
       supabase
         .from('posts')
-        .select('id, content, created_at, profiles(*)')
-        .ilike('content', term)
-        .eq('anonymous', false)
+        .select('id, body, created_at, profiles(*)')
+        .ilike('body', term)
+        .eq('is_anonymous', false)
         .order('created_at', { ascending: false })
         .limit(5),
       supabase
@@ -77,7 +77,7 @@ export default function SearchView({ onBack }: SearchViewProps) {
       profiles: (profileRes.data ?? []) as DbProfile[],
       posts: (postRes.data ?? []).map((p: any) => ({
         id: p.id,
-        content: p.content,
+        body: p.body,
         profile: p.profiles as DbProfile | null,
         created_at: p.created_at,
       })),
@@ -220,7 +220,7 @@ export default function SearchView({ onBack }: SearchViewProps) {
               <div className="space-y-3">
                 {results.posts.map((p) => (
                   <div key={p.id} className="card-sprout p-4">
-                    <p className="text-sm mb-2 leading-relaxed" style={{ color: '#2a1f18', lineHeight: 1.5 }}>{p.content}</p>
+                    <p className="text-sm mb-2 leading-relaxed" style={{ color: '#2a1f18', lineHeight: 1.5 }}>{p.body}</p>
                     <p className="text-xs" style={{ color: '#9a8070' }}>
                       {p.profile?.name ?? 'Community Member'} · {formatRelativeTime(p.created_at)}
                     </p>

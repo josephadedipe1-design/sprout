@@ -8,12 +8,12 @@ import type { DbProfile } from '@/lib/types';
 
 interface Post {
   id: string;
-  content: string;
+  body: string;
   tags: string[];
   type: string;
   created_at: string;
   profile: DbProfile | null;
-  anonymous: boolean;
+  is_anonymous: boolean;
   likes: number;
   liked: boolean;
 }
@@ -83,12 +83,12 @@ export default function ThreadView({ postId, onBack }: ThreadViewProps) {
       const p = postRes.data as any;
       setPost({
         id: p.id,
-        content: p.content,
+        body: p.body,
         tags: p.tags ?? [],
         type: p.type,
         created_at: p.created_at,
         profile: profileMap[p.user_id] ?? null,
-        anonymous: p.anonymous,
+        is_anonymous: p.is_anonymous,
         likes: likeRes.data?.length ?? 0,
         liked: !!myLike.data,
       });
@@ -142,8 +142,8 @@ export default function ThreadView({ postId, onBack }: ThreadViewProps) {
     setSubmitting(false);
   }
 
-  const authorName = post ? (post.anonymous ? 'Anonymous Parent' : post.profile?.name ?? 'Community Member') : '';
-  const authorAvatar = post && !post.anonymous ? post.profile?.avatar_url ?? '' : '';
+  const authorName = post ? (post.is_anonymous ? 'Anonymous Parent' : post.profile?.name ?? 'Community Member') : '';
+  const authorAvatar = post && !post.is_anonymous ? post.profile?.avatar_url ?? '' : '';
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 pb-32 lg:pb-6">
@@ -179,15 +179,15 @@ export default function ThreadView({ postId, onBack }: ThreadViewProps) {
                 ) : (
                   <div
                     className="w-11 h-11 rounded-full flex items-center justify-center text-base font-bold text-white"
-                    style={{ background: post.anonymous ? '#2563EB' : 'var(--brand)' }}
+                    style={{ background: post.is_anonymous ? '#2563EB' : 'var(--brand)' }}
                   >
-                    {post.anonymous ? '?' : authorName.charAt(0)}
+                    {post.is_anonymous ? '?' : authorName.charAt(0)}
                   </div>
                 )}
                 <div>
                   <p className="font-semibold" style={{ color: '#2a1f18' }}>{authorName}</p>
                   <div className="flex items-center gap-1 text-xs" style={{ color: '#9a8070' }}>
-                    {post.profile?.neighborhood && !post.anonymous && (
+                    {post.profile?.neighborhood && !post.is_anonymous && (
                       <><MapPin className="w-3 h-3" />{post.profile.neighborhood} · </>
                     )}
                     {formatRelativeTime(post.created_at)}
@@ -196,7 +196,7 @@ export default function ThreadView({ postId, onBack }: ThreadViewProps) {
               </div>
               <button style={{ color: '#c4a090' }}><MoreHorizontal className="w-4 h-4" /></button>
             </div>
-            <p className="text-sm leading-relaxed mb-4" style={{ color: '#3a2820', lineHeight: 1.65 }}>{post.content}</p>
+            <p className="text-sm leading-relaxed mb-4" style={{ color: '#3a2820', lineHeight: 1.65 }}>{post.body}</p>
             {post.tags.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mb-4">
                 {post.tags.map((t) => <span key={t} className="text-xs px-2.5 py-1 rounded-full" style={{ background: '#f4f3f0', color: '#7a6055' }}>#{t}</span>)}

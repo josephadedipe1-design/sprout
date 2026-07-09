@@ -53,12 +53,12 @@ export default function NotificationsView({ onGoToFeed, onGoToMatching, onGoToMe
     // Fetch my posts so we can filter activity on them
     const { data: myPosts } = await supabase
       .from('posts')
-      .select('id, content')
+      .select('id, body')
       .eq('user_id', user.id);
 
     const myPostIds = (myPosts ?? []).map((p: any) => p.id);
     const postContentMap: Record<string, string> = {};
-    (myPosts ?? []).forEach((p: any) => { postContentMap[p.id] = p.content; });
+    (myPosts ?? []).forEach((p: any) => { postContentMap[p.id] = p.body; });
 
     // Collect all actor user_ids so we can batch-fetch profiles
     const actorIds = new Set<string>();
