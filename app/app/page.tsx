@@ -48,6 +48,7 @@ function AppContent() {
   const [showWelcome, setShowWelcome] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
   const [marketTrigger, setMarketTrigger] = useState(false);
+  const [marketOpenListingId, setMarketOpenListingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -172,7 +173,7 @@ function AppContent() {
       return (
         <ListingDetailView
           listingId={subView.listingId}
-          onBack={() => setSubView(null)}
+          onBack={() => { setSubView(null); setFeedRefreshKey(k => k + 1); }}
           onMessage={(sellerUserId, listing) => {
             setSubView(null);
             setMessageWithUserId(sellerUserId);
@@ -218,11 +219,11 @@ function AppContent() {
             onOpenThread={(id) => setSubView({ type: 'thread', postId: id })}
             onNewPost={() => setSubView({ type: 'newpost' })}
             onGoToMarket={() => navigate('market')}
-            onOpenListing={(id) => setSubView({ type: 'listing', listingId: id })}
+            onOpenListing={(id) => { navigate('market'); setMarketOpenListingId(id); }}
           />
         );
       case 'market':
-        return <MarketView onOpenListing={(id) => setSubView({ type: 'listing', listingId: id })} triggerNewListing={marketTrigger} onNewListingTriggered={() => setMarketTrigger(false)} />;
+        return <MarketView onOpenListing={(id) => setSubView({ type: 'listing', listingId: id })} triggerNewListing={marketTrigger} onNewListingTriggered={() => setMarketTrigger(false)} triggerOpenListingId={marketOpenListingId} onTriggerOpenListingHandled={() => setMarketOpenListingId(null)} />;
       case 'messages':
         return <MessagesView openWithUserId={messageWithUserId} onConversationOpened={() => { setMessageWithUserId(null); setMessageListing(null); }} messageListing={messageListing} onActiveChatChange={setMobileChatActive} />;
       case 'matching':

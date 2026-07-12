@@ -32,9 +32,11 @@ interface MarketViewProps {
   onOpenListing: (id: string) => void;
   triggerNewListing?: boolean;
   onNewListingTriggered?: () => void;
+  triggerOpenListingId?: string | null;
+  onTriggerOpenListingHandled?: () => void;
 }
 
-export default function MarketView({ onOpenListing, triggerNewListing, onNewListingTriggered }: MarketViewProps) {
+export default function MarketView({ onOpenListing, triggerNewListing, onNewListingTriggered, triggerOpenListingId, onTriggerOpenListingHandled }: MarketViewProps) {
   const { user, profile } = useAuth();
   const postcodeDistrict = profile?.postcode_district || '';
   const [dbListings, setDbListings] = useState<DisplayListing[]>([]);
@@ -108,6 +110,14 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [triggerNewListing]);
 
+  useEffect(() => {
+    if (triggerOpenListingId) {
+      onOpenListing(triggerOpenListingId);
+      onTriggerOpenListingHandled?.();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [triggerOpenListingId]);
+
   function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -160,7 +170,7 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
       catch { /* proceed without image */ }
     }
 
-    const priceInPounds = newListing.free ? 0 : Math.floor(Number(newListing.price) || 0);
+    const priceInPounds = newListing.free ? 0 : Math.round(parseFloat(newListing.price || '0') * 100) / 100;
 
     // Step 2: insert listing (no image_url)
     const { data: inserted, error } = await supabase.from('listings').insert({
@@ -193,13 +203,14 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
     setSubmitting(false);
 
     // Also create a feed post
-    const priceStr = priceInPounds === 0 ? 'free' : `£${priceInPounds}`;
+    const priceStr = priceInPounds === 0 ? 'free' : `£${priceInPounds.toFixed(2)}`;
     await supabase.from('posts').insert({
       author_id: user.id,
       post_type: 'listing',
       body: `Just listed for sale: ${newListing.title} — ${newListing.condition} condition, ${priceStr}.`,
       is_anonymous: false,
       postcode_district: postcodeDistrict,
+      listing_id: inserted?.id,
     });
 
     setNewListing({ title: '', category: 'Toys', price: '', free: false, condition: 'Good', description: '' });
@@ -314,7 +325,7 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
                 {listing.price === 0 ? (
                   <span className="text-base font-bold" style={{ color: listing.sold ? '#9a8070' : '#16a34a' }}>Free</span>
                 ) : (
-                  <span className="text-base font-bold" style={{ color: listing.sold ? '#9a8070' : 'var(--brand)' }}>£{listing.price}</span>
+                  <span className="text-base font-bold" style={{ color: listing.sold ? '#9a8070' : 'var(--brand)' }}>£{listing.price.toFixed(2)}</span>
                 )}
               </div>
               <div className="flex items-center gap-1 text-xs mt-1" style={{ color: '#9a8070' }}>
@@ -407,9 +418,13 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
                       <span className="flex items-center px-3 text-sm font-semibold border-r flex-shrink-0" style={{ background: '#f4f3f0', color: '#7a6055', borderColor: 'var(--border-color)' }}>£</span>
                       <input
                         className="flex-1 px-3 py-2.5 text-sm outline-none bg-white"
-                        type="number" min="0" step="1" placeholder="0"
+                        type="text" inputMode="numeric" placeholder="0.00"
                         value={newListing.price}
-                        onChange={e => setNewListing(n => ({ ...n, price: e.target.value }))}
+                        onChange={e => {
+                          const digits = e.target.value.replace(/\D/g, '');
+                          const pence = parseInt(digits || '0', 10);
+                          setNewListing(n => ({ ...n, price: (pence / 100).toFixed(2) }));
+                        }}
                         style={{ color: '#2a1f18' }}
                       />
                     </div>
