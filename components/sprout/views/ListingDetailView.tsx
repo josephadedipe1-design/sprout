@@ -5,7 +5,7 @@ import { ArrowLeft, MapPin, Heart, MessageCircle, Share2, CheckCircle, Trash2, C
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import type { DbListing, DbProfile } from '@/lib/types';
-import { getCategoryStyle } from '@/lib/utils';
+import { getCategoryStyle, formatLocation } from '@/lib/utils';
 
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
   Travel: Car, Sleep: Moon, Clothing: Tag, Toys: Gamepad2,
@@ -212,7 +212,9 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
   const hasRealImage = !!primaryImageUrl;
   const priceInPounds = listing.price_pence / 100;
   const sellerName = seller?.name || 'Community Member';
-  const sellerNeighborhood = seller?.neighborhood || seller?.city || '';
+  const sellerNeighborhood = seller?.postcode_district
+    ? formatLocation(seller.postcode_district)
+    : (seller?.neighborhood || seller?.city || '');
   const sellerAvatar = seller?.avatar_url || '';
   const catStyle = getCategoryStyle(listing.category);
   const CategoryIcon = CATEGORY_ICONS[listing.category] ?? ShoppingBag;

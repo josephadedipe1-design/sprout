@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { MapPin, Edit3, Settings, Heart, FileText, ShoppingBag, UserPlus } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
+import { formatLocation } from '@/lib/utils';
 
 interface ActivityItem {
   id: string;
@@ -107,7 +108,7 @@ export default function ProfileView({ onEditProfile, onSettings }: ProfileViewPr
   const displayName = firstName
     ? `${firstName}${lastInitial ? ' ' + lastInitial + '.' : ''}`
     : 'You';
-  const location = profile?.postcode_district || [profile?.neighborhood, profile?.city].filter(Boolean).join(', ') || 'Location not set';
+  const location = formatLocation(profile?.postcode_district || '') || [profile?.neighborhood, profile?.city].filter(Boolean).join(', ') || 'Location not set';
   const bio = profile?.bio || '';
   const interests = profile?.interests ?? [];
   const avatarUrl = profile?.avatar_url || '';

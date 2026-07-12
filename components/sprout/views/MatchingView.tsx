@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import type { DbProfile, DbConnection } from '@/lib/types';
 import UKMap from '@/components/sprout/UKMap';
+import { formatLocation } from '@/lib/utils';
 
 type Tab = 'discover' | 'connections' | 'requests' | 'map';
 
@@ -153,6 +154,23 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
     loadSentRequests();
   }, [loadRealConnections, loadRealRequests, loadSentRequests]);
 
+  // Realtime subscription: refresh requests/connections when match_requests changes
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel(`match-requests-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'match_requests' }, (payload) => {
+        const row = ((payload.new ?? payload.old) as any) || {};
+        if (row.to_user_id === user.id || row.from_user_id === user.id) {
+          loadRealRequests();
+          loadRealConnections();
+          loadSentRequests();
+        }
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user, loadRealRequests, loadRealConnections, loadSentRequests]);
+
   useEffect(() => {
     if (tab === 'discover') loadDiscoverProfiles();
   }, [tab, loadDiscoverProfiles]);
@@ -193,7 +211,20 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
     const current = discoverQueue[discoverIdx];
     if (!current || !user) return;
     setAnimating('right');
-    await supabase.from('match_requests').insert({ from_user_id: user.id, to_user_id: current.id, status: 'pending' }).then(() => {});
+
+    const { data: newReq } = await supabase
+      .from('match_requests')
+      .insert({ from_user_id: user.id, to_user_id: current.id, status: 'pending' })
+      .select('id')
+      .single();
+
+    // Immediately reflect the sent request so the Requests tab updates without a refresh
+    setSentRequests(prev => [...prev, {
+      id: newReq?.id ?? `temp-${Date.now()}`,
+      profile: current,
+      requesterId: user.id,
+    }]);
+
     setTimeout(() => { setDiscoverIdx(i => i + 1); setAnimating(null); }, 300);
   }
 
@@ -208,6 +239,7 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
       name: p.name,
       age: 30,
       neighborhood: p.neighborhood,
+      postcode_district: p.postcode_district,
       childrenAges: p.children_ages,
       bio: p.bio,
       interests: p.interests,
@@ -292,7 +324,7 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold mb-0.5" style={{ color: '#2a1f18' }}>{rc.profile.name}</p>
                   <div className="flex items-center gap-1 text-xs" style={{ color: '#9a8070' }}>
-                    <MapPin className="w-3 h-3" />{rc.profile.neighborhood || rc.profile.city}
+                    <MapPin className="w-3 h-3" />{formatLocation(rc.profile.postcode_district || '') || rc.profile.neighborhood || rc.profile.city}
                   </div>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {(rc.profile.children_ages ?? []).map(a => (
@@ -339,7 +371,7 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold" style={{ color: '#2a1f18' }}>{rr.profile.name}</p>
                         <div className="flex items-center gap-1 text-xs mb-1" style={{ color: '#9a8070' }}>
-                          <MapPin className="w-3 h-3" />{rr.profile.neighborhood || rr.profile.city}
+                          <MapPin className="w-3 h-3" />{formatLocation(rr.profile.postcode_district || '') || rr.profile.neighborhood || rr.profile.city}
                         </div>
                         {rr.profile.bio && (
                           <p className="text-xs leading-relaxed line-clamp-2" style={{ color: '#7a6055' }}>{rr.profile.bio}</p>
@@ -394,7 +426,7 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold" style={{ color: '#2a1f18' }}>{sr.profile.name}</p>
                       <div className="flex items-center gap-1 text-xs" style={{ color: '#9a8070' }}>
-                        <MapPin className="w-3 h-3" />{sr.profile.neighborhood || sr.profile.city}
+                        <MapPin className="w-3 h-3" />{formatLocation(sr.profile.postcode_district || '') || sr.profile.neighborhood || sr.profile.city}
                       </div>
                       <p className="text-xs mt-0.5 font-medium" style={{ color: '#c4a090' }}>Request pending</p>
                     </div>
@@ -514,7 +546,7 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
                         )}
                       </div>
                       <div className="flex items-center gap-1 text-xs mt-0.5" style={{ color: '#9a8070' }}>
-                        <MapPin className="w-3 h-3" />{current.neighborhood || current.city || 'Nearby'}
+                        <MapPin className="w-3 h-3" />{formatLocation(current.postcode_district || '') || current.neighborhood || current.city || 'Nearby'}
                         {myProfile?.lat && myProfile?.lng && current.lat && current.lng && (
                           <span className="font-medium" style={{ color: '#c4a090' }}>
                             · {Math.round(haversineKm(myProfile.lat, myProfile.lng, current.lat, current.lng) * 0.621371 * 10) / 10} mi away

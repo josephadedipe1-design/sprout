@@ -5,6 +5,7 @@ import { ArrowLeft, Heart, Send, MoreHorizontal, MapPin, Loader2 } from 'lucide-
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import type { DbProfile } from '@/lib/types';
+import { formatLocation } from '@/lib/utils';
 
 interface Post {
   id: string;
@@ -185,8 +186,8 @@ export default function ThreadView({ postId, onBack }: ThreadViewProps) {
                 <div>
                   <p className="font-semibold" style={{ color: '#2a1f18' }}>{authorName}</p>
                   <div className="flex items-center gap-1 text-xs" style={{ color: '#9a8070' }}>
-                    {post.profile?.neighborhood && !post.is_anonymous && (
-                      <><MapPin className="w-3 h-3" />{post.profile.neighborhood} · </>
+                    {post.profile?.postcode_district && !post.is_anonymous && (
+                      <><MapPin className="w-3 h-3" />{formatLocation(post.profile.postcode_district)} · </>
                     )}
                     {formatRelativeTime(post.created_at)}
                   </div>

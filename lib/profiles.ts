@@ -6,6 +6,7 @@ export interface Profile {
   name: string;
   age: number;
   neighborhood: string;
+  postcode_district?: string;
   childrenAges: string[];
   bio: string;
   interests: string[];

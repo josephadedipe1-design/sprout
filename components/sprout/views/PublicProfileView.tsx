@@ -5,6 +5,7 @@ import { ArrowLeft, MapPin, Baby, Star, Heart, UserPlus, MessageCircle, X, Loade
 import { Profile } from '@/lib/profiles';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
+import { formatLocation } from '@/lib/utils';
 
 interface PublicProfileViewProps {
   profile: Profile;
@@ -59,7 +60,7 @@ export default function PublicProfileView({ profile, onBack, onConnect, onMessag
         <div className="flex-1 min-w-0 pt-1">
           <h1 className="text-xl font-bold" style={{ color: '#2a1f18' }}>{profile.name}, {profile.age}</h1>
           <div className="flex items-center gap-1.5 text-sm mt-0.5" style={{ color: '#9a8070' }}>
-            <MapPin className="w-3.5 h-3.5" /> {profile.neighborhood}
+            <MapPin className="w-3.5 h-3.5" /> {profile.postcode_district ? formatLocation(profile.postcode_district) : profile.neighborhood}
             <span className="text-xs" style={{ color: '#c4a090' }}>· {profile.distanceMiles} mi away</span>
           </div>
           {profile.mutual > 0 && (

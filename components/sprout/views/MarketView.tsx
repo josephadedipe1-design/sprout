@@ -5,7 +5,7 @@ import { Search, MapPin, Heart, X, ChevronDown, ShoppingBag, CheckCircle, Trash2
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import type { DbListing } from '@/lib/types';
-import { getCategoryStyle } from '@/lib/utils';
+import { getCategoryStyle, formatLocation } from '@/lib/utils';
 
 const DEMO_LISTINGS: never[] = [];
 
@@ -26,7 +26,7 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
 
 interface DisplayListing {
   id: string; title: string; price: number; condition: string; category: string;
-  seller: string; neighborhood: string; image: string; saved: boolean;
+  seller: string; neighborhood: string; postcode_district: string; image: string; saved: boolean;
   sold: boolean; isDb?: boolean; isOwn?: boolean;
 }
 
@@ -98,6 +98,7 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
       id: l.id, title: l.title, price: l.price_pence / 100, condition: l.condition, category: l.category,
       seller: profileMap[l.seller_id]?.name || 'Community Member',
       neighborhood: profileMap[l.seller_id]?.neighborhood || '',
+      postcode_district: l.postcode_district,
       image: imageMap[l.id] || '',
       saved: savedIds.has(l.id), sold: l.status === 'sold',
       isDb: true, isOwn: l.seller_id === user.id,
@@ -335,7 +336,7 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
                 )}
               </div>
               <div className="flex items-center gap-1 text-xs mt-1" style={{ color: '#9a8070' }}>
-                <MapPin className="w-3 h-3" />{listing.neighborhood || listing.seller}
+                <MapPin className="w-3 h-3" />{formatLocation(listing.postcode_district) || listing.neighborhood || listing.seller}
               </div>
             </div>
           </div>

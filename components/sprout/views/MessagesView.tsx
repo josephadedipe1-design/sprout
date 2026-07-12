@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import type { DbMessage, DbProfile } from '@/lib/types';
 import type { ListingSnap } from './ListingDetailView';
+import { formatLocation } from '@/lib/utils';
 import { getCategoryStyle } from '@/lib/utils';
 
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
@@ -621,7 +622,7 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
                       )}
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold" style={{ color: '#2a1f18' }}>{p.name}</p>
-                        <p className="text-xs" style={{ color: '#9a8070' }}>{p.neighborhood || p.city || 'Nearby'}</p>
+                        <p className="text-xs" style={{ color: '#9a8070' }}>{p.postcode_district ? formatLocation(p.postcode_district) : (p.neighborhood || p.city || 'Nearby')}</p>
                       </div>
                     </button>
                   ))

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Search, ArrowLeft, MapPin, Clock, TrendingUp, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { DbProfile } from '@/lib/types';
+import { formatLocation } from '@/lib/utils';
 
 const TRENDING = ['Pediatric dentist', 'Sleep regression', 'Playgroup', 'Baby carrier', 'First foods'];
 
@@ -17,8 +18,8 @@ interface PostResult {
 interface ListingResult {
   id: string;
   title: string;
-  price: number;
-  neighborhood: string;
+  price_pence: number;
+  postcode_district: string;
   image_url: string;
 }
 
@@ -68,9 +69,9 @@ export default function SearchView({ onBack }: SearchViewProps) {
         .limit(5),
       supabase
         .from('listings')
-        .select('id, title, price, neighborhood, image_url')
+        .select('id, title, price_pence, postcode_district, image_url')
         .ilike('title', term)
-        .eq('sold', false)
+        .eq('status', 'active')
         .limit(3),
     ]);
     setResults({
@@ -202,9 +203,9 @@ export default function SearchView({ onBack }: SearchViewProps) {
                     )}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold truncate" style={{ color: '#2a1f18' }}>{p.name}</p>
-                      {p.neighborhood && (
+                      {p.postcode_district && (
                         <p className="text-xs flex items-center gap-1" style={{ color: '#9a8070' }}>
-                          <MapPin className="w-3 h-3" />{p.neighborhood}
+                          <MapPin className="w-3 h-3" />{formatLocation(p.postcode_district)}
                         </p>
                       )}
                     </div>
@@ -243,10 +244,10 @@ export default function SearchView({ onBack }: SearchViewProps) {
                     )}
                     <div>
                       <p className="text-sm font-semibold" style={{ color: '#2a1f18' }}>{l.title}</p>
-                      <p className="text-base font-bold" style={{ color: 'var(--brand)' }}>£{l.price}</p>
-                      {l.neighborhood && (
+                      <p className="text-base font-bold" style={{ color: 'var(--brand)' }}>{l.price_pence === 0 ? 'Free' : `£${(l.price_pence / 100).toFixed(2)}`}</p>
+                      {l.postcode_district && (
                         <p className="text-xs flex items-center gap-1" style={{ color: '#9a8070' }}>
-                          <MapPin className="w-3 h-3" />{l.neighborhood}
+                          <MapPin className="w-3 h-3" />{formatLocation(l.postcode_district)}
                         </p>
                       )}
                     </div>

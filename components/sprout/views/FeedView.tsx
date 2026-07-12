@@ -6,7 +6,7 @@ import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, MapPin, Leaf, C
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import type { DbProfile, DbListing } from '@/lib/types';
-import { getCategoryStyle } from '@/lib/utils';
+import { getCategoryStyle, formatLocation } from '@/lib/utils';
 
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
   Travel: Car, Sleep: Moon, Clothing: Tag, Toys: Gamepad2,
@@ -552,7 +552,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
                       </span>
                       <div className="flex items-center gap-1 text-xs" style={{ color: '#9a8070' }}>
                         <MapPin className="w-3 h-3 flex-shrink-0" />
-                        <span className="truncate max-w-[80px]">{listing.postcode_district}</span>
+                        <span className="truncate max-w-[120px]">{formatLocation(listing.postcode_district)}</span>
                         <span>· {formatRelativeTime(listing.created_at)}</span>
                       </div>
                     </div>
@@ -565,7 +565,9 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
             const typeInfo = TYPE_COLORS[post.post_type] ?? TYPE_COLORS.question;
             const authorName = post.is_anonymous ? 'Anonymous Parent' : (post.profile?.name || 'Community Member');
             const authorAvatar = post.is_anonymous ? '' : (post.profile?.avatar_url || '');
-            const authorNeighborhood = post.profile?.neighborhood || '';
+            const authorLocation = post.profile?.postcode_district
+              ? formatLocation(post.profile.postcode_district)
+              : (post.profile?.neighborhood || '');
             const timeAgo = formatRelativeTime(post.created_at);
 
             return (
@@ -589,7 +591,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
                       <div>
                         <p className="text-sm font-semibold" style={{ color: '#2a1f18' }}>{authorName}</p>
                         <div className="flex items-center gap-1 text-xs" style={{ color: '#9a8070' }}>
-                          {authorNeighborhood && <><MapPin className="w-3 h-3" />{authorNeighborhood} · </>}
+                          {authorLocation && <><MapPin className="w-3 h-3" />{authorLocation} · </>}
                           {timeAgo}
                         </div>
                       </div>
