@@ -161,8 +161,8 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
       const finalPrice = newListing.free ? 0 : Math.floor(Number(newListing.price) || 0);
       const priceStr = finalPrice === 0 ? 'free' : `£${finalPrice}`;
       await supabase.from('posts').insert({
-        user_id: user.id,
-        type: 'listing',
+        author_id: user.id,
+        post_type: 'listing',
         body: `Just listed for sale: ${newListing.title} — ${newListing.condition} condition, ${priceStr}.`,
         is_anonymous: false,
         postcode_district: postcodeDistrict,

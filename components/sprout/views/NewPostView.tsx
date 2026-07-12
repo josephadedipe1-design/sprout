@@ -41,8 +41,8 @@ export default function NewPostView({ onBack, onPublish, onListInMarket }: NewPo
     setError('');
 
     const { error: insertError } = await supabase.from('posts').insert({
-      user_id: user.id,
-      type: postType,
+      author_id: user.id,
+      post_type: postType,
       body: content.trim(),
       is_anonymous: anonymous,
       postcode_district: postcodeDistrict,

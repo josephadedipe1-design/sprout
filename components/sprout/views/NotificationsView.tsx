@@ -54,7 +54,7 @@ export default function NotificationsView({ onGoToFeed, onGoToMatching, onGoToMe
     const { data: myPosts } = await supabase
       .from('posts')
       .select('id, body')
-      .eq('user_id', user.id);
+      .eq('author_id', user.id);
 
     const myPostIds = (myPosts ?? []).map((p: any) => p.id);
     const postContentMap: Record<string, string> = {};

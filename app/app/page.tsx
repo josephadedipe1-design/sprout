@@ -67,7 +67,7 @@ function AppContent() {
       const { data: myPosts } = await supabase
         .from('posts')
         .select('id')
-        .eq('user_id', user!.id);
+        .eq('author_id', user!.id);
 
       const myPostIds = (myPosts ?? []).map((p: any) => p.id);
       if (myPostIds.length === 0) return;

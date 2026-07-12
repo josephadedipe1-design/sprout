@@ -9,7 +9,7 @@ import type { DbProfile } from '@/lib/types';
 interface Post {
   id: string;
   body: string;
-  type: string;
+  post_type: string;
   created_at: string;
   profile: DbProfile | null;
   is_anonymous: boolean;
@@ -62,7 +62,7 @@ export default function ThreadView({ postId, onBack }: ThreadViewProps) {
 
     // Collect all user IDs needing profiles
     const userIds = Array.from(new Set([
-      postRes.data?.user_id,
+      postRes.data?.author_id,
       ...((commentsRes.data ?? []) as any[]).map((c: any) => c.user_id),
     ].filter(Boolean)));
 
@@ -83,9 +83,9 @@ export default function ThreadView({ postId, onBack }: ThreadViewProps) {
       setPost({
         id: p.id,
         body: p.body,
-        type: p.type,
+        post_type: p.post_type,
         created_at: p.created_at,
-        profile: profileMap[p.user_id] ?? null,
+        profile: profileMap[p.author_id] ?? null,
         is_anonymous: p.is_anonymous,
         likes: likeRes.data?.length ?? 0,
         liked: !!myLike.data,

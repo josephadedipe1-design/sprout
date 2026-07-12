@@ -15,11 +15,11 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
 
 interface Post {
   id: string;
-  type: string;
+  post_type: string;
   body: string;
   is_anonymous: boolean;
   created_at: string;
-  user_id: string;
+  author_id: string;
   profile: DbProfile | null;
   likes: number;
   comments: number;
@@ -235,13 +235,13 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
     if (error || !data) { setLoading(false); return; }
 
     // Fetch profiles for all post authors
-    const userIds = Array.from(new Set((data as any[]).map(p => p.user_id).filter(Boolean)));
+    const authorIds = Array.from(new Set((data as any[]).map(p => p.author_id).filter(Boolean)));
     const profileMap: Record<string, DbProfile> = {};
-    if (userIds.length > 0) {
+    if (authorIds.length > 0) {
       const { data: profileRows } = await supabase
         .from('profiles')
         .select('*')
-        .in('id', userIds);
+        .in('id', authorIds);
       (profileRows ?? []).forEach((p: DbProfile) => { profileMap[p.id] = p; });
     }
 
@@ -260,12 +260,12 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
 
     const mapped: Post[] = (data as any[]).map((p) => ({
       id: p.id,
-      type: p.type,
+      post_type: p.post_type,
       body: p.body,
       is_anonymous: p.is_anonymous,
       created_at: p.created_at,
-      user_id: p.user_id,
-      profile: profileMap[p.user_id] ?? null,
+      author_id: p.author_id,
+      profile: profileMap[p.author_id] ?? null,
       likes: p.post_likes?.[0]?.count ?? 0,
       comments: p.comment_count?.[0]?.count ?? 0,
       liked: likedIds.has(p.id),
@@ -388,7 +388,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
   const filters = ['All', 'Questions', 'Meetups', 'Market', 'Support'];
   const filtered = activeFilter === 'All' ? dbPosts : dbPosts.filter((p) => {
     const map: Record<string, string> = { Questions: 'question', Support: 'support', Meetups: 'meetup', Market: 'market' };
-    return p.type === map[activeFilter];
+    return p.post_type === map[activeFilter];
   });
 
   return (
@@ -567,7 +567,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
             </div>
           )}
           {filtered.map((post) => {
-            const typeInfo = TYPE_COLORS[post.type] ?? TYPE_COLORS.question;
+            const typeInfo = TYPE_COLORS[post.post_type] ?? TYPE_COLORS.question;
             const authorName = post.is_anonymous ? 'Anonymous Parent' : (post.profile?.name || 'Community Member');
             const authorAvatar = post.is_anonymous ? '' : (post.profile?.avatar_url || '');
             const authorNeighborhood = post.profile?.neighborhood || '';
@@ -601,7 +601,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="tag-sprout" style={{ background: typeInfo.bg, color: typeInfo.text }}>{typeInfo.label}</span>
-                      {post.user_id === user?.id && (
+                      {post.author_id === user?.id && (
                         <div className="relative" onClick={e => e.stopPropagation()}>
                           <button
                             onClick={() => setMenuPostId(menuPostId === post.id ? null : post.id)}

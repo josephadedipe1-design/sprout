@@ -53,7 +53,7 @@ export default function ProfileView({ onEditProfile, onSettings }: ProfileViewPr
 
     async function loadStats() {
       const [postsRes, connectionsRes, listingsRes] = await Promise.all([
-        supabase.from('posts').select('id', { count: 'exact', head: true }).eq('user_id', user!.id),
+        supabase.from('posts').select('id', { count: 'exact', head: true }).eq('author_id', user!.id),
         supabase.from('match_requests').select('id', { count: 'exact', head: true })
           .or(`from_user_id.eq.${user!.id},to_user_id.eq.${user!.id}`)
           .eq('status', 'accepted'),
@@ -68,7 +68,7 @@ export default function ProfileView({ onEditProfile, onSettings }: ProfileViewPr
 
     async function loadActivity() {
       const [postsRes, listingsRes] = await Promise.all([
-        supabase.from('posts').select('id, body, created_at').eq('user_id', user!.id).order('created_at', { ascending: false }).limit(5),
+        supabase.from('posts').select('id, body, created_at').eq('author_id', user!.id).order('created_at', { ascending: false }).limit(5),
         supabase.from('listings').select('id, title, price, created_at').eq('user_id', user!.id).order('created_at', { ascending: false }).limit(3),
       ]);
 
