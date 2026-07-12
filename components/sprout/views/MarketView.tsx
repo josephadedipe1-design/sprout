@@ -10,7 +10,13 @@ import { getCategoryStyle } from '@/lib/utils';
 const DEMO_LISTINGS: never[] = [];
 
 const CATEGORIES = ['All', 'Free', 'Travel', 'Sleep', 'Clothing', 'Toys', 'Gear', 'Feeding', 'Furniture', 'Education', 'Miscellaneous'];
-const CONDITIONS = ['New', 'Like New', 'Good', 'Used', 'Well Loved'];
+const CONDITIONS: { label: string; value: string }[] = [
+  { label: 'Like new', value: 'new' },
+  { label: 'Excellent condition', value: 'excellent' },
+  { label: 'Good condition', value: 'good' },
+  { label: 'Fair condition', value: 'fair' },
+  { label: 'Poor condition', value: 'poor' },
+];
 const PLACEHOLDER_IMG = 'https://images.pexels.com/photos/1148998/pexels-photo-1148998.jpeg';
 
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
@@ -44,7 +50,7 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
   const [category, setCategory] = useState('All');
   const [showModal, setShowModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [newListing, setNewListing] = useState<NewListing>({ title: '', category: 'Toys', price: '', free: false, condition: 'Good', description: '' });
+  const [newListing, setNewListing] = useState<NewListing>({ title: '', category: 'Toys', price: '', free: false, condition: 'good', description: '' });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
   const [listError, setListError] = useState('');
@@ -213,7 +219,7 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
       listing_id: inserted?.id,
     });
 
-    setNewListing({ title: '', category: 'Toys', price: '', free: false, condition: 'Good', description: '' });
+    setNewListing({ title: '', category: 'Toys', price: '', free: false, condition: 'good', description: '' });
     setImageFile(null);
     setImagePreview('');
     setListError('');
@@ -222,7 +228,7 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
   }
 
   function openModal() {
-    setNewListing({ title: '', category: 'Toys', price: '', free: false, condition: 'Good', description: '' });
+    setNewListing({ title: '', category: 'Toys', price: '', free: false, condition: 'good', description: '' });
     setImageFile(null);
     setImagePreview('');
     setListError('');
@@ -399,7 +405,7 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
                   <label className="block text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: '#7a6055' }}>Condition</label>
                   <div className="relative">
                     <select className="input-sprout pr-8 appearance-none" value={newListing.condition} onChange={e => setNewListing(n => ({ ...n, condition: e.target.value }))}>
-                      {CONDITIONS.map(c => <option key={c}>{c}</option>)}
+                      {CONDITIONS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
                     </select>
                     <ChevronDown className="w-4 h-4 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#9a8070' }} />
                   </div>

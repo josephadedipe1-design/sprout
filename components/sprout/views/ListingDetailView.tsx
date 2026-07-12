@@ -13,7 +13,13 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
 };
 
 const EDIT_CATEGORIES = ['Travel', 'Sleep', 'Clothing', 'Toys', 'Gear', 'Feeding', 'Furniture', 'Education', 'Miscellaneous'];
-const EDIT_CONDITIONS = ['New', 'Like New', 'Good', 'Used', 'Well Loved'];
+const EDIT_CONDITIONS: { label: string; value: string }[] = [
+  { label: 'Like new', value: 'new' },
+  { label: 'Excellent condition', value: 'excellent' },
+  { label: 'Good condition', value: 'good' },
+  { label: 'Fair condition', value: 'fair' },
+  { label: 'Poor condition', value: 'poor' },
+];
 
 export interface ListingSnap {
   id: string;
@@ -43,7 +49,7 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const [showEdit, setShowEdit] = useState(false);
-  const [editForm, setEditForm] = useState({ title: '', description: '', price: '', free: false, condition: 'Good', category: 'Toys' });
+  const [editForm, setEditForm] = useState({ title: '', description: '', price: '', free: false, condition: 'good', category: 'Toys' });
   const [editImageFile, setEditImageFile] = useState<File | null>(null);
   const [editImagePreview, setEditImagePreview] = useState('');
   const [editSubmitting, setEditSubmitting] = useState(false);
@@ -460,13 +466,13 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
                 <label className="text-xs font-semibold block mb-1" style={{ color: '#7a6055' }}>Condition</label>
                 <div className="flex flex-wrap gap-2">
                   {EDIT_CONDITIONS.map(c => (
-                    <button type="button" key={c}
-                      onClick={() => setEditForm(f => ({ ...f, condition: c }))}
+                    <button type="button" key={c.value}
+                      onClick={() => setEditForm(f => ({ ...f, condition: c.value }))}
                       className="px-3 py-1.5 rounded-full text-xs font-medium border transition-all"
-                      style={editForm.condition === c
+                      style={editForm.condition === c.value
                         ? { background: 'var(--brand)', color: 'white', borderColor: 'var(--brand)' }
                         : { background: 'white', color: '#5a4035', borderColor: 'var(--border-color)' }}>
-                      {c}
+                      {c.label}
                     </button>
                   ))}
                 </div>
