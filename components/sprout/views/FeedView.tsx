@@ -22,8 +22,7 @@ interface Post {
   author_id: string;
   profile: DbProfile | null;
   likes: number;
-  comments: number;
-  liked: boolean;
+  comments: number;  liked: boolean;
   saved: boolean;
 }
 
@@ -220,7 +219,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
     // district is available (new account, district not yet set).
     let postsQuery = supabase
       .from('posts')
-      .select('*, likes(count), comment_count:comments(count)')
+      .select('*, likes(count), reply_count:replies(count)')
       .order('created_at', { ascending: false })
       .limit(50);
 
@@ -267,7 +266,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
       author_id: p.author_id,
       profile: profileMap[p.author_id] ?? null,
       likes: p.likes?.[0]?.count ?? 0,
-      comments: p.comment_count?.[0]?.count ?? 0,
+      comments: p.reply_count?.[0]?.count ?? 0,
       liked: likedIds.has(p.id),
       saved: savedIds.has(p.id),
     }));

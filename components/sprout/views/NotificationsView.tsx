@@ -76,17 +76,17 @@ export default function NotificationsView({ onGoToFeed, onGoToMatching, onGoToMe
       (data ?? []).forEach((r: any) => { likesRaw.push(r); actorIds.add(r.user_id); });
     }
 
-    // 2. Comments on my posts
-    const commentsRaw: any[] = [];
+    // 2. Replies on my posts
+    const repliesRaw: any[] = [];
     if (myPostIds.length > 0) {
       const { data } = await supabase
-        .from('comments')
-        .select('id, user_id, post_id, content, created_at')
+        .from('replies')
+        .select('id, author_id, post_id, body, created_at')
         .in('post_id', myPostIds)
-        .neq('user_id', user.id)
+        .neq('author_id', user.id)
         .order('created_at', { ascending: false })
         .limit(20);
-      (data ?? []).forEach((r: any) => { commentsRaw.push(r); actorIds.add(r.user_id); });
+      (data ?? []).forEach((r: any) => { repliesRaw.push(r); actorIds.add(r.author_id); });
     }
 
     // 3. Pending connection requests to me
@@ -123,14 +123,14 @@ export default function NotificationsView({ onGoToFeed, onGoToMatching, onGoToMe
       });
     }
 
-    for (const r of commentsRaw) {
-      const actor = profileMap[r.user_id];
+    for (const r of repliesRaw) {
+      const actor = profileMap[r.author_id];
       all.push({
-        id: `comment-${r.id}`,
+        id: `reply-${r.id}`,
         type: 'comment',
         actorName: actor?.name || 'Someone',
         actorAvatar: actor?.avatar_url || '',
-        text: `commented on your post: "${truncate(r.content || '')}"`,
+        text: `replied to your post: "${truncate(r.body || '')}"`,
         time: formatRelativeTime(r.created_at),
         read: false,
         created_at: r.created_at,

@@ -81,14 +81,14 @@ function AppContent() {
 
       if ((likeCount ?? 0) > 0) { setHasUnread(true); return; }
 
-      const { count: commentCount } = await supabase
-        .from('comments')
+      const { count: replyCount } = await supabase
+        .from('replies')
         .select('id', { count: 'exact', head: true })
         .in('post_id', myPostIds)
-        .neq('user_id', user!.id)
+        .neq('author_id', user!.id)
         .gt('created_at', since);
 
-      if ((commentCount ?? 0) > 0) setHasUnread(true);
+      if ((replyCount ?? 0) > 0) setHasUnread(true);
     }
     checkUnread();
 
