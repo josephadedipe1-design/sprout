@@ -14,6 +14,7 @@ interface RealNotification {
   time: string;
   read: boolean;
   created_at: string;
+  post_id?: string;
 }
 
 const ICON_MAP: Record<string, { icon: React.FC<{ className?: string; style?: React.CSSProperties }>, bg: string, color: string }> = {
@@ -39,9 +40,10 @@ interface NotificationsViewProps {
   onGoToFeed: () => void;
   onGoToMatching: () => void;
   onGoToMessages: () => void;
+  onOpenThread: (postId: string) => void;
 }
 
-export default function NotificationsView({ onGoToFeed, onGoToMatching, onGoToMessages }: NotificationsViewProps) {
+export default function NotificationsView({ onGoToFeed, onGoToMatching, onGoToMessages, onOpenThread }: NotificationsViewProps) {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<RealNotification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -120,6 +122,7 @@ export default function NotificationsView({ onGoToFeed, onGoToMatching, onGoToMe
         time: formatRelativeTime(r.created_at),
         read: false,
         created_at: r.created_at,
+        post_id: r.post_id,
       });
     }
 
@@ -134,6 +137,7 @@ export default function NotificationsView({ onGoToFeed, onGoToMatching, onGoToMe
         time: formatRelativeTime(r.created_at),
         read: false,
         created_at: r.created_at,
+        post_id: r.post_id,
       });
     }
 
@@ -165,6 +169,7 @@ export default function NotificationsView({ onGoToFeed, onGoToMatching, onGoToMe
   function handleTap(n: RealNotification) {
     setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read: true } : x));
     if (n.type === 'connect') onGoToMatching();
+    else if ((n.type === 'like' || n.type === 'comment') && n.post_id) onOpenThread(n.post_id);
     else if (n.type === 'like' || n.type === 'comment') onGoToFeed();
     else onGoToMessages();
   }

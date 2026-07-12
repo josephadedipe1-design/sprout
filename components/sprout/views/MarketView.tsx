@@ -209,16 +209,6 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
 
     setSubmitting(false);
 
-    // Also create a feed post
-    const priceStr = priceInPounds === 0 ? 'free' : `£${priceInPounds.toFixed(2)}`;
-    await supabase.from('posts').insert({
-      author_id: user.id,
-      post_type: 'listing',
-      body: `Just listed for sale: ${newListing.title} — ${newListing.condition} condition, ${priceStr}.`,
-      is_anonymous: false,
-      postcode_district: postcodeDistrict,
-    });
-
     setNewListing({ title: '', category: 'Toys', price: '', free: false, condition: 'good', description: '' });
     setImageFile(null);
     setImagePreview('');

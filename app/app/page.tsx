@@ -238,6 +238,7 @@ function AppContent() {
             onGoToFeed={() => navigate('feed')}
             onGoToMatching={() => navigate('matching')}
             onGoToMessages={() => navigate('messages')}
+            onOpenThread={(id) => setSubView({ type: 'thread', postId: id })}
           />
         );
       case 'profile':
