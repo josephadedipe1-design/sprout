@@ -26,8 +26,8 @@ export default function PublicProfileView({ profile, onBack, onConnect, onMessag
     setConnecting(true);
     setConnectError('');
     const { error } = await supabase
-      .from('connections')
-      .insert({ requester_id: user.id, addressee_id: profile.userId, status: 'pending' });
+      .from('match_requests')
+      .insert({ from_user_id: user.id, to_user_id: profile.userId, status: 'pending' });
     if (error) {
       console.error('Connection insert error:', error);
       setConnectError('Could not send request. Please try again.');

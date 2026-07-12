@@ -17,7 +17,6 @@ interface Post {
   id: string;
   type: string;
   body: string;
-  tags: string[];
   is_anonymous: boolean;
   created_at: string;
   user_id: string;
@@ -199,21 +198,20 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
     // Check if user is first in their local area
     const { data: myProfile } = await supabase
       .from('profiles')
-      .select('postcode, postcode_district, neighborhood')
+      .select('postcode_district, neighborhood')
       .eq('id', user.id)
       .maybeSingle();
 
-    const userDistrict: string = (myProfile as any)?.postcode_district || myProfile?.postcode?.split(' ')[0] || '';
+    const userDistrict: string = (myProfile as any)?.postcode_district || '';
 
-    if (myProfile?.postcode) {
-      const prefix = myProfile.postcode.trim().split(/\s/)[0].toUpperCase();
+    if (userDistrict) {
       const { count } = await supabase
         .from('profiles')
         .select('id', { count: 'exact', head: true })
-        .ilike('postcode', `${prefix}%`);
+        .ilike('postcode_district', `${userDistrict}%`);
       if ((count ?? 0) <= 1) {
         setIsFirstInArea(true);
-        setAreaName((myProfile as any).neighborhood || prefix);
+        setAreaName((myProfile as any).neighborhood || userDistrict);
       }
     }
 
@@ -264,7 +262,6 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
       id: p.id,
       type: p.type,
       body: p.body,
-      tags: p.tags ?? [],
       is_anonymous: p.is_anonymous,
       created_at: p.created_at,
       user_id: p.user_id,
@@ -634,12 +631,6 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
                   </div>
 
                   <p className="text-sm leading-relaxed mb-3" style={{ color: '#3a2820', lineHeight: 1.6 }}>{post.body}</p>
-
-                  <div className="flex flex-wrap gap-1.5 mb-3">
-                    {post.tags.map((tag) => (
-                      <span key={tag} className="text-xs px-2.5 py-1 rounded-full" style={{ background: '#f4f3f0', color: '#7a6055' }}>#{tag}</span>
-                    ))}
-                  </div>
                 </div>
 
                 <div className="flex items-center border-t px-4 py-2.5" style={{ borderColor: 'var(--border-color)' }} onClick={e => e.stopPropagation()}>

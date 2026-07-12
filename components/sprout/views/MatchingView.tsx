@@ -47,15 +47,15 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
   const loadRealConnections = useCallback(async () => {
     if (!user) return;
     const { data } = await supabase
-      .from('connections')
+      .from('match_requests')
       .select('*')
-      .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`)
+      .or(`from_user_id.eq.${user.id},to_user_id.eq.${user.id}`)
       .eq('status', 'accepted');
 
     if (!data) return;
 
     const profileIds = Array.from(new Set(
-      data.flatMap(c => [c.requester_id, c.addressee_id]).filter(id => id !== user.id)
+      data.flatMap(c => [c.from_user_id, c.to_user_id]).filter(id => id !== user.id)
     ));
     const profileMap: Record<string, DbProfile> = {};
     if (profileIds.length > 0) {
@@ -66,8 +66,8 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
 
     const mapped: RealConnection[] = data.map(c => ({
       id: c.id,
-      profile: profileMap[c.requester_id === user.id ? c.addressee_id : c.requester_id],
-      requesterId: c.requester_id,
+      profile: profileMap[c.from_user_id === user.id ? c.to_user_id : c.from_user_id],
+      requesterId: c.from_user_id,
     })).filter(c => c.profile);
     setRealConnections(mapped);
   }, [user]);
@@ -75,14 +75,14 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
   const loadRealRequests = useCallback(async () => {
     if (!user) return;
     const { data } = await supabase
-      .from('connections')
+      .from('match_requests')
       .select('*')
-      .eq('addressee_id', user.id)
+      .eq('to_user_id', user.id)
       .eq('status', 'pending');
 
     if (!data) return;
 
-    const profileIds = data.map(c => c.requester_id).filter(Boolean);
+    const profileIds = data.map(c => c.from_user_id).filter(Boolean);
     const profileMap: Record<string, DbProfile> = {};
     if (profileIds.length > 0) {
       const { data: rows } = await supabase.from('profiles').select('*').in('id', profileIds);
@@ -92,8 +92,8 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
 
     const mapped: RealConnection[] = data.map(c => ({
       id: c.id,
-      profile: profileMap[c.requester_id],
-      requesterId: c.requester_id,
+      profile: profileMap[c.from_user_id],
+      requesterId: c.from_user_id,
     })).filter(c => c.profile);
     setRealRequests(mapped);
   }, [user]);
@@ -101,14 +101,14 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
   const loadSentRequests = useCallback(async () => {
     if (!user) return;
     const { data } = await supabase
-      .from('connections')
+      .from('match_requests')
       .select('*')
-      .eq('requester_id', user.id)
+      .eq('from_user_id', user.id)
       .eq('status', 'pending');
 
     if (!data) return;
 
-    const profileIds = data.map(c => c.addressee_id).filter(Boolean);
+    const profileIds = data.map(c => c.to_user_id).filter(Boolean);
     const profileMap: Record<string, DbProfile> = {};
     if (profileIds.length > 0) {
       const { data: rows } = await supabase.from('profiles').select('*').in('id', profileIds);
@@ -118,8 +118,8 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
 
     const mapped: RealConnection[] = data.map(c => ({
       id: c.id,
-      profile: profileMap[c.addressee_id],
-      requesterId: c.requester_id,
+      profile: profileMap[c.to_user_id],
+      requesterId: c.from_user_id,
     })).filter(c => c.profile);
     setSentRequests(mapped);
   }, [user]);
@@ -127,14 +127,14 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
   const loadDiscoverProfiles = useCallback(async () => {
     if (!user) return;
     const { data: existingConns } = await supabase
-      .from('connections')
-      .select('requester_id, addressee_id')
-      .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`);
+      .from('match_requests')
+      .select('from_user_id, to_user_id')
+      .or(`from_user_id.eq.${user.id},to_user_id.eq.${user.id}`);
 
     const excludeIds = new Set<string>([user.id]);
     (existingConns ?? []).forEach(c => {
-      excludeIds.add(c.requester_id);
-      excludeIds.add(c.addressee_id);
+      excludeIds.add(c.from_user_id);
+      excludeIds.add(c.to_user_id);
     });
 
     const excludeArr = Array.from(excludeIds);
@@ -173,19 +173,19 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
   }, [tab, loadMapProfiles]);
 
   async function acceptRealRequest(connId: string) {
-    await supabase.from('connections').update({ status: 'accepted' }).eq('id', connId);
+    await supabase.from('match_requests').update({ status: 'accepted' }).eq('id', connId);
     await loadRealConnections();
     await loadRealRequests();
     setTab('connections');
   }
 
   async function declineRealRequest(connId: string) {
-    await supabase.from('connections').update({ status: 'declined' }).eq('id', connId);
+    await supabase.from('match_requests').update({ status: 'declined' }).eq('id', connId);
     await loadRealRequests();
   }
 
   async function cancelSentRequest(connId: string) {
-    await supabase.from('connections').delete().eq('id', connId);
+    await supabase.from('match_requests').delete().eq('id', connId);
     await loadSentRequests();
   }
 
@@ -193,7 +193,7 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
     const current = discoverQueue[discoverIdx];
     if (!current || !user) return;
     setAnimating('right');
-    await supabase.from('connections').insert({ requester_id: user.id, addressee_id: current.id, status: 'pending' }).then(() => {});
+    await supabase.from('match_requests').insert({ from_user_id: user.id, to_user_id: current.id, status: 'pending' }).then(() => {});
     setTimeout(() => { setDiscoverIdx(i => i + 1); setAnimating(null); }, 300);
   }
 

@@ -91,13 +91,13 @@ export default function NotificationsView({ onGoToFeed, onGoToMatching, onGoToMe
 
     // 3. Pending connection requests to me
     const { data: connRaw } = await supabase
-      .from('connections')
-      .select('id, requester_id, created_at')
-      .eq('addressee_id', user.id)
+      .from('match_requests')
+      .select('id, from_user_id, created_at')
+      .eq('to_user_id', user.id)
       .eq('status', 'pending')
       .order('created_at', { ascending: false })
       .limit(20);
-    (connRaw ?? []).forEach((r: any) => actorIds.add(r.requester_id));
+    (connRaw ?? []).forEach((r: any) => actorIds.add(r.from_user_id));
 
     // Batch-fetch all actor profiles
     const profileMap: Record<string, { name: string; avatar_url: string }> = {};
@@ -138,7 +138,7 @@ export default function NotificationsView({ onGoToFeed, onGoToMatching, onGoToMe
     }
 
     for (const r of (connRaw ?? [])) {
-      const actor = profileMap[r.requester_id];
+      const actor = profileMap[r.from_user_id];
       all.push({
         id: `connect-${r.id}`,
         type: 'connect',

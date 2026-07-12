@@ -190,14 +190,14 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
   const loadConnections = useCallback(async () => {
     if (!user) return;
     const { data: connData } = await supabase
-      .from('connections')
+      .from('match_requests')
       .select('*')
-      .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`)
+      .or(`from_user_id.eq.${user.id},to_user_id.eq.${user.id}`)
       .eq('status', 'accepted');
 
     const rows = connData ?? [];
     const otherIds = rows.map((c: any) =>
-      c.requester_id === user.id ? c.addressee_id : c.requester_id
+      c.from_user_id === user.id ? c.to_user_id : c.from_user_id
     ).filter(Boolean);
 
     if (otherIds.length === 0) { setConnections([]); return; }

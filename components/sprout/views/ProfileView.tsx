@@ -54,8 +54,8 @@ export default function ProfileView({ onEditProfile, onSettings }: ProfileViewPr
     async function loadStats() {
       const [postsRes, connectionsRes, listingsRes] = await Promise.all([
         supabase.from('posts').select('id', { count: 'exact', head: true }).eq('user_id', user!.id),
-        supabase.from('connections').select('id', { count: 'exact', head: true })
-          .or(`requester_id.eq.${user!.id},addressee_id.eq.${user!.id}`)
+        supabase.from('match_requests').select('id', { count: 'exact', head: true })
+          .or(`from_user_id.eq.${user!.id},to_user_id.eq.${user!.id}`)
           .eq('status', 'accepted'),
         supabase.from('listings').select('id', { count: 'exact', head: true }).eq('user_id', user!.id),
       ]);

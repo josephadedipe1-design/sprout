@@ -41,13 +41,13 @@ export default function WelcomeView({ onDone, onGoToMatching }: WelcomeViewProps
     }
 
     // Fallback: same postcode district, then any profiles
-    const district = profile.postcode_district ?? profile.postcode?.split(' ')[0];
+    const district = profile.postcode_district;
     if (district) {
       const { data } = await supabase
         .from('profiles')
         .select('*')
         .neq('id', profile.id)
-        .ilike('postcode', `${district}%`)
+        .ilike('postcode_district', `${district}%`)
         .limit(10);
       if (data && data.length > 0) {
         setNearbyParents(await enrichProfilesWithChildren(data as DbProfile[]));
@@ -69,7 +69,7 @@ export default function WelcomeView({ onDone, onGoToMatching }: WelcomeViewProps
   }, [loadNearby]);
 
   const firstName = profile?.first_name || 'there';
-  const district = profile?.postcode_district || profile?.postcode?.split(' ')[0] || '';
+  const district = profile?.postcode_district || '';
 
   function buildInviteMessage() {
     const loc = district || (profile?.neighborhood ? profile.neighborhood : '');

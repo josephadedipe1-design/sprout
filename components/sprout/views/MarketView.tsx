@@ -36,7 +36,7 @@ interface MarketViewProps {
 
 export default function MarketView({ onOpenListing, triggerNewListing, onNewListingTriggered }: MarketViewProps) {
   const { user, profile } = useAuth();
-  const postcodeDistrict = (profile as any)?.postcode_district || (profile as any)?.postcode?.split(' ')[0] || '';
+  const postcodeDistrict = profile?.postcode_district || '';
   const [dbListings, setDbListings] = useState<DisplayListing[]>([]);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All');
@@ -164,7 +164,6 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
         user_id: user.id,
         type: 'listing',
         body: `Just listed for sale: ${newListing.title} — ${newListing.condition} condition, ${priceStr}.`,
-        tags: ['forsale', newListing.category.toLowerCase()],
         is_anonymous: false,
         postcode_district: postcodeDistrict,
       });

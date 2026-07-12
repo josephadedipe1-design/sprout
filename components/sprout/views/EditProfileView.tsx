@@ -52,7 +52,7 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
         bio: profile.bio,
         neighborhood: profile.neighborhood,
         city: profile.city,
-        postcode: profile.postcode ?? '',
+        postcode: profile.postcode_district ?? '',
         interests: profile.interests ?? [],
       });
       setAvatarUrl(profile.avatar_url || '');
@@ -106,7 +106,7 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
     let city = form.city;
 
     const postcodeTrimmed = form.postcode.trim();
-    const postcodeChanged = postcodeTrimmed && postcodeTrimmed !== (profile?.postcode ?? '');
+    const postcodeChanged = postcodeTrimmed && postcodeTrimmed !== (profile?.postcode_district ?? '');
     if (postcodeChanged) {
       setGeocoding(true);
       try {
@@ -130,7 +130,7 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
     const nameParts = (form.name || '').trim().split(/\s+/);
     const firstName = nameParts[0] || '';
     const lastInitial = nameParts.length > 1 ? nameParts[nameParts.length - 1][0].toUpperCase() : '';
-    const finalPostcode = postcodeTrimmed || profile?.postcode || '';
+    const finalPostcode = postcodeTrimmed || profile?.postcode_district || '';
 
     const update: Record<string, unknown> = {
       id: user.id,
@@ -141,7 +141,6 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
       neighborhood,
       city,
       interests: form.interests,
-      postcode: finalPostcode,
       postcode_district: finalPostcode.split(' ')[0] || profile?.postcode_district || '',
       updated_at: new Date().toISOString(),
     };

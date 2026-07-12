@@ -56,9 +56,9 @@ function AppContent() {
       const since = lastSeen ?? new Date(0).toISOString();
 
       const { count: connCount } = await supabase
-        .from('connections')
+        .from('match_requests')
         .select('id', { count: 'exact', head: true })
-        .eq('addressee_id', user!.id)
+        .eq('to_user_id', user!.id)
         .eq('status', 'pending')
         .gt('created_at', since);
 

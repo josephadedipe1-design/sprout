@@ -17,7 +17,6 @@ export interface DbProfile {
   parent_type: string;
   interests: string[];
   children_ages: string[];
-  postcode: string;
   postcode_district?: string;
   due_date: string | null;
   lat?: number | null;
@@ -31,7 +30,6 @@ export interface DbPost {
   user_id: string;
   type: string;
   body: string;
-  tags: string[];
   is_anonymous: boolean;
   created_at: string;
   profiles?: DbProfile | null;
@@ -79,10 +77,10 @@ export interface DbMessage {
 
 export interface DbConnection {
   id: string;
-  requester_id: string;
-  addressee_id: string;
+  from_user_id: string;
+  to_user_id: string;
   status: string;
   created_at: string;
-  requester?: DbProfile | null;
-  addressee?: DbProfile | null;
+  from_user?: DbProfile | null;
+  to_user?: DbProfile | null;
 }

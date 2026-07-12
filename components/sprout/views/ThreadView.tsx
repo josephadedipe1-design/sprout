@@ -9,7 +9,6 @@ import type { DbProfile } from '@/lib/types';
 interface Post {
   id: string;
   body: string;
-  tags: string[];
   type: string;
   created_at: string;
   profile: DbProfile | null;
@@ -84,7 +83,6 @@ export default function ThreadView({ postId, onBack }: ThreadViewProps) {
       setPost({
         id: p.id,
         body: p.body,
-        tags: p.tags ?? [],
         type: p.type,
         created_at: p.created_at,
         profile: profileMap[p.user_id] ?? null,
@@ -197,11 +195,6 @@ export default function ThreadView({ postId, onBack }: ThreadViewProps) {
               <button style={{ color: '#c4a090' }}><MoreHorizontal className="w-4 h-4" /></button>
             </div>
             <p className="text-sm leading-relaxed mb-4" style={{ color: '#3a2820', lineHeight: 1.65 }}>{post.body}</p>
-            {post.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mb-4">
-                {post.tags.map((t) => <span key={t} className="text-xs px-2.5 py-1 rounded-full" style={{ background: '#f4f3f0', color: '#7a6055' }}>#{t}</span>)}
-              </div>
-            )}
             <button
               onClick={togglePostLike}
               className="flex items-center gap-1.5 text-sm"

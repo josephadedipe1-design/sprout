@@ -22,7 +22,7 @@ interface NewPostViewProps {
 
 export default function NewPostView({ onBack, onPublish, onListInMarket }: NewPostViewProps) {
   const { user, profile } = useAuth();
-  const postcodeDistrict = (profile as any)?.postcode_district || profile?.postcode?.split(' ')[0] || '';
+  const postcodeDistrict = profile?.postcode_district || '';
   const [step, setStep] = useState<'type' | 'compose'>('type');
   const [postType, setPostType] = useState('');
   const [content, setContent] = useState('');
@@ -44,7 +44,6 @@ export default function NewPostView({ onBack, onPublish, onListInMarket }: NewPo
       user_id: user.id,
       type: postType,
       body: content.trim(),
-      tags: selectedTags,
       is_anonymous: anonymous,
       postcode_district: postcodeDistrict,
     });

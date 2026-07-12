@@ -41,22 +41,21 @@ export const AGE_LABEL_TO_MONTHS: Record<string, number> = {
   '5 years': 60,
 };
 
-/** Fetches children rows for the given profile IDs and merges age labels into profile.children_ages */
+/** Fetches children rows for the given profile IDs and sets profile.children_ages from the children table */
 export async function enrichProfilesWithChildren(profiles: DbProfile[]): Promise<DbProfile[]> {
   if (profiles.length === 0) return profiles;
   const ids = profiles.map(p => p.id);
   const { data } = await supabase.from('children').select('user_id, age_months').in('user_id', ids);
-  if (!data || data.length === 0) return profiles;
 
   const childMap: Record<string, string[]> = {};
-  for (const row of data) {
+  for (const row of (data ?? [])) {
     if (!childMap[row.user_id]) childMap[row.user_id] = [];
     childMap[row.user_id].push(ageMonthsToLabel(row.age_months));
   }
 
   return profiles.map(p => ({
     ...p,
-    children_ages: childMap[p.id]?.length ? childMap[p.id] : p.children_ages,
+    children_ages: childMap[p.id] ?? [],
   }));
 }
 
