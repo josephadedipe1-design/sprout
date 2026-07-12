@@ -15,7 +15,6 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
 const EDIT_CATEGORIES = ['Travel', 'Sleep', 'Clothing', 'Toys', 'Gear', 'Feeding', 'Furniture', 'Education', 'Miscellaneous'];
 const EDIT_CONDITIONS = ['New', 'Like New', 'Good', 'Used', 'Well Loved'];
 
-
 export interface ListingSnap {
   id: string;
   title: string;
@@ -36,12 +35,13 @@ type FullListing = DbListing & { profiles: DbProfile | null };
 export default function ListingDetailView({ listingId, onBack, onMessage }: ListingDetailViewProps) {
   const { user } = useAuth();
   const [listing, setListing] = useState<FullListing | null>(null);
+  const [primaryImageUrl, setPrimaryImageUrl] = useState('');
+  const [primaryImageId, setPrimaryImageId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  // Edit state
   const [showEdit, setShowEdit] = useState(false);
   const [editForm, setEditForm] = useState({ title: '', description: '', price: '', free: false, condition: 'Good', category: 'Toys' });
   const [editImageFile, setEditImageFile] = useState<File | null>(null);
@@ -60,23 +60,16 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
         .maybeSingle();
 
       if (data) {
-        // Fetch profile separately
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', data.user_id)
-          .maybeSingle();
-        setListing({ ...data, profiles: profileData ?? null } as FullListing);
-        // Check if saved
-        if (user) {
-          const { data: save } = await supabase
-            .from('listing_saves')
-            .select('listing_id')
-            .eq('listing_id', listingId)
-            .eq('user_id', user.id)
-            .maybeSingle();
-          setSaved(!!save);
-        }
+        const [profileRes, imageRes, saveRes] = await Promise.all([
+          supabase.from('profiles').select('*').eq('id', data.seller_id).maybeSingle(),
+          supabase.from('listing_images').select('id, url').eq('listing_id', listingId).order('position', { ascending: true }).limit(1).maybeSingle(),
+          user ? supabase.from('listing_saves').select('listing_id').eq('listing_id', listingId).eq('user_id', user.id).maybeSingle() : Promise.resolve({ data: null }),
+        ]);
+
+        setListing({ ...data, profiles: profileRes.data ?? null } as FullListing);
+        setPrimaryImageUrl(imageRes.data?.url ?? '');
+        setPrimaryImageId(imageRes.data?.id ?? null);
+        setSaved(!!saveRes.data);
       }
       setLoading(false);
     }
@@ -95,8 +88,8 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
 
   async function markSold() {
     if (!listing) return;
-    await supabase.from('listings').update({ sold: true }).eq('id', listing.id);
-    setListing(l => l ? { ...l, sold: true } : l);
+    await supabase.from('listings').update({ status: 'sold' }).eq('id', listing.id);
+    setListing(l => l ? { ...l, status: 'sold' } : l);
   }
 
   async function handleDelete() {
@@ -108,11 +101,12 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
 
   function openEdit() {
     if (!listing) return;
+    const priceInPounds = listing.price_pence / 100;
     setEditForm({
       title: listing.title,
       description: listing.description || '',
-      price: listing.price === 0 ? '' : String(listing.price),
-      free: listing.price === 0,
+      price: priceInPounds === 0 ? '' : priceInPounds.toFixed(2),
+      free: priceInPounds === 0,
       condition: listing.condition,
       category: listing.category,
     });
@@ -137,31 +131,46 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
     setEditSubmitting(true);
     setEditError('');
 
-    let imageUrl = listing.image_url;
+    // Upload new image if provided
+    let newImageUrl = '';
     if (editImageFile) {
-      try { imageUrl = await uploadEditImage(editImageFile); }
+      try { newImageUrl = await uploadEditImage(editImageFile); }
       catch { /* keep existing */ }
     }
+
+    const priceInPounds = editForm.free ? 0 : Math.round(parseFloat(editForm.price || '0') * 100) / 100;
 
     const { error } = await supabase.from('listings').update({
       title: editForm.title,
       description: editForm.description,
-      price: editForm.free ? 0 : Math.floor(Number(editForm.price) || 0),
+      price_pence: priceInPounds * 100,
       condition: editForm.condition,
       category: editForm.category,
-      image_url: imageUrl,
     }).eq('id', listing.id);
+
+    if (!error && newImageUrl) {
+      if (primaryImageId) {
+        await supabase.from('listing_images').update({ url: newImageUrl }).eq('id', primaryImageId);
+      } else {
+        await supabase.from('listing_images').insert({ listing_id: listing.id, url: newImageUrl, position: 0 });
+      }
+      setPrimaryImageUrl(newImageUrl);
+    }
 
     setEditSubmitting(false);
     if (!error) {
+      const priceStr = priceInPounds === 0 ? 'free' : `£${priceInPounds.toFixed(2)}`;
+      await supabase.from('posts')
+        .update({ body: `Just listed for sale: ${editForm.title} — ${editForm.condition} condition, ${priceStr}.` })
+        .eq('listing_id', listing.id);
+
       setListing(l => l ? {
         ...l,
         title: editForm.title,
         description: editForm.description,
-        price: editForm.free ? 0 : Math.floor(Number(editForm.price) || 0),
+        price_pence: priceInPounds * 100,
         condition: editForm.condition,
         category: editForm.category,
-        image_url: imageUrl,
       } : l);
       setShowEdit(false);
     } else {
@@ -191,9 +200,11 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
     );
   }
 
-  const isOwner = user?.id === listing.user_id;
+  const isSold = listing.status === 'sold';
+  const isOwner = user?.id === listing.seller_id;
   const seller = listing.profiles;
-  const hasRealImage = !!listing.image_url && !listing.image_url.includes('1148998');
+  const hasRealImage = !!primaryImageUrl;
+  const priceInPounds = listing.price_pence / 100;
   const sellerName = seller?.name || 'Community Member';
   const sellerNeighborhood = seller?.neighborhood || seller?.city || '';
   const sellerAvatar = seller?.avatar_url || '';
@@ -206,14 +217,14 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
       <div className="relative">
         {hasRealImage ? (
           <img
-            src={listing.image_url}
+            src={primaryImageUrl}
             alt={listing.title}
-            className={`w-full h-72 lg:h-96 object-cover ${listing.sold ? 'opacity-70' : ''}`}
+            className={`w-full h-72 lg:h-96 object-cover ${isSold ? 'opacity-70' : ''}`}
             style={{ borderRadius: '0 0 1.25rem 1.25rem' }}
           />
         ) : (
           <div
-            className={`w-full h-72 lg:h-96 flex flex-col items-center justify-center gap-4 ${listing.sold ? 'opacity-70' : ''}`}
+            className={`w-full h-72 lg:h-96 flex flex-col items-center justify-center gap-4 ${isSold ? 'opacity-70' : ''}`}
             style={{ background: catStyle.bg, borderRadius: '0 0 1.25rem 1.25rem' }}
           >
             <CategoryIcon className="w-20 h-20" style={{ color: catStyle.color, opacity: 0.75 }} />
@@ -221,7 +232,7 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
           </div>
         )}
 
-        {listing.sold && (
+        {isSold && (
           <div className="absolute inset-0 flex items-center justify-center" style={{ borderRadius: '0 0 1.25rem 1.25rem', background: 'rgba(0,0,0,0.3)' }}>
             <span className="text-xl font-bold text-white px-5 py-2 rounded-full" style={{ background: '#374151' }}>Sold</span>
           </div>
@@ -235,7 +246,7 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
           <ArrowLeft className="w-5 h-5" style={{ color: '#2a1f18' }} />
         </button>
 
-        {!isOwner && !listing.sold && (
+        {!isOwner && !isSold && (
           <button
             onClick={toggleSave}
             className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center"
@@ -244,7 +255,6 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
             <Heart className="w-5 h-5" style={{ color: saved ? '#E53E3E' : '#9a8070' }} fill={saved ? '#E53E3E' : 'none'} />
           </button>
         )}
-
       </div>
 
       <div className="px-4 py-5 space-y-5">
@@ -255,13 +265,13 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
             <div className="flex items-center gap-2">
               <span className="tag-sprout" style={{ background: '#FFF7ED', color: '#D97706' }}>{listing.condition}</span>
               <span className="tag-sprout" style={{ background: '#f4f3f0', color: '#7a6055' }}>{listing.category}</span>
-              {listing.sold && (
+              {isSold && (
                 <span className="tag-sprout" style={{ background: '#f3f4f6', color: '#374151' }}>Sold</span>
               )}
             </div>
           </div>
-          <span className="text-2xl font-bold" style={{ color: listing.sold ? '#9a8070' : (listing.price === 0 ? '#16a34a' : 'var(--brand)') }}>
-            {listing.price === 0 ? 'Free' : `£${listing.price}`}
+          <span className="text-2xl font-bold" style={{ color: isSold ? '#9a8070' : (priceInPounds === 0 ? '#16a34a' : 'var(--brand)') }}>
+            {priceInPounds === 0 ? 'Free' : `£${priceInPounds.toFixed(2)}`}
           </span>
         </div>
 
@@ -295,7 +305,7 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
         )}
 
         {/* Owner actions */}
-        {isOwner && !listing.sold && (
+        {isOwner && !isSold && (
           <div className="space-y-2 pt-2">
             <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#b8a090' }}>Manage your listing</p>
             <div className="flex gap-2">
@@ -346,7 +356,7 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
       </div>
 
       {/* CTA bar — only for non-owners on active listings */}
-      {!isOwner && !listing.sold && (
+      {!isOwner && !isSold && (
         <div
           className="fixed bottom-0 left-0 right-0 lg:static px-4 py-4 flex gap-3 border-t lg:border-0 lg:px-4"
           style={{ background: 'var(--bg)', borderColor: 'var(--border-color)' }}
@@ -358,13 +368,13 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
             <Share2 className="w-4 h-4" /> Share
           </button>
           <button
-            onClick={() => listing.user_id && onMessage(listing.user_id, {
+            onClick={() => listing.seller_id && onMessage(listing.seller_id, {
               id: listing.id,
               title: listing.title,
-              price: listing.price,
+              price: priceInPounds,
               condition: listing.condition,
               category: listing.category,
-              image_url: listing.image_url,
+              image_url: primaryImageUrl,
             })}
             className="btn-brand flex-1 text-sm gap-2"
           >
@@ -374,7 +384,7 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
       )}
 
       {/* Sold state CTA */}
-      {!isOwner && listing.sold && (
+      {!isOwner && isSold && (
         <div
           className="fixed bottom-0 left-0 right-0 lg:static px-4 py-4 lg:px-4"
           style={{ background: 'var(--bg)', borderTop: '1px solid var(--border-color)' }}
@@ -400,7 +410,7 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
               <div>
                 <p className="text-xs font-semibold mb-2" style={{ color: '#7a6055' }}>Photo</p>
                 {(() => {
-                  const editCurrentImg = editImagePreview || (hasRealImage ? listing.image_url : '');
+                  const editCurrentImg = editImagePreview || primaryImageUrl;
                   const EditCategoryIcon = CATEGORY_ICONS[editForm.category] ?? ShoppingBag;
                   const editCatStyle = { bg: 'var(--brand-light)', color: 'var(--brand)' };
                   return (
@@ -474,8 +484,14 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
                 {!editForm.free && (
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold" style={{ color: '#9a8070' }}>£</span>
-                    <input type="number" min="0" className="w-full rounded-xl border pl-7 pr-3 py-2.5 text-sm" style={{ borderColor: 'var(--border-color)' }}
-                      value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} placeholder="0" />
+                    <input type="text" inputMode="numeric" min="0" className="w-full rounded-xl border pl-7 pr-3 py-2.5 text-sm" style={{ borderColor: 'var(--border-color)' }}
+                      value={editForm.price}
+                      onChange={e => {
+                        const digits = e.target.value.replace(/\D/g, '');
+                        const pence = parseInt(digits || '0', 10);
+                        setEditForm(f => ({ ...f, price: (pence / 100).toFixed(2) }));
+                      }}
+                      placeholder="0.00" />
                   </div>
                 )}
               </div>

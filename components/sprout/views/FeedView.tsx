@@ -29,15 +29,14 @@ interface Post {
 interface FeedListing {
   id: string;
   title: string;
-  price: number;
+  price_pence: number;
   condition: string;
   category: string;
-  image_url: string;
-  sold: boolean;
+  seller_id: string;
+  postcode_district: string;
+  status: string;
+  offers_welcome: boolean;
   created_at: string;
-  user_id: string;
-  sellerName: string;
-  neighborhood: string;
 }
 
 const TYPE_COLORS: Record<string, { bg: string; text: string; label: string }> = {
@@ -285,28 +284,17 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
 
     if (error || !data) return;
 
-    const userIds = Array.from(new Set((data as any[]).map((l: any) => l.user_id).filter(Boolean)));
-    const profileMap: Record<string, { name: string; neighborhood: string }> = {};
-    if (userIds.length > 0) {
-      const { data: profileRows } = await supabase
-        .from('profiles')
-        .select('id, name, neighborhood')
-        .in('id', userIds);
-      (profileRows ?? []).forEach((p: any) => { profileMap[p.id] = p; });
-    }
-
     const mapped: FeedListing[] = (data as DbListing[]).map(l => ({
       id: l.id,
       title: l.title,
-      price: l.price,
+      price_pence: l.price_pence,
       condition: l.condition,
       category: l.category,
-      image_url: l.image_url,
-      sold: l.sold,
+      seller_id: l.seller_id,
+      postcode_district: l.postcode_district,
+      status: l.status,
+      offers_welcome: l.offers_welcome,
       created_at: l.created_at,
-      user_id: l.user_id,
-      sellerName: profileMap[l.user_id]?.name || 'Community Member',
-      neighborhood: profileMap[l.user_id]?.neighborhood || '',
     }));
 
     setFeedListings(mapped);
@@ -463,61 +451,55 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
             </div>
           )}
 
-          {feedListings.map((listing) => (
+            {feedListings.map((listing) => (
             <article
               key={listing.id}
               className="card-sprout overflow-hidden cursor-pointer hover:shadow-md transition-shadow flex"
               onClick={() => onOpenListing(listing.id)}
             >
               {(() => {
-                const showIcon = !listing.image_url || listing.image_url.includes('1148998');
+                const isSold = listing.status === 'sold';
+                const priceInPounds = listing.price_pence / 100;
                 const catStyle = getCategoryStyle(listing.category);
                 const CategoryIcon = CATEGORY_ICONS[listing.category] ?? ShoppingBag;
                 return (
-                  <div className="relative flex-shrink-0 w-28 sm:w-36" style={{ minHeight: 96 }}>
-                    {showIcon ? (
+                  <>
+                    <div className="relative flex-shrink-0 w-28 sm:w-36" style={{ minHeight: 96 }}>
                       <div className="w-full h-full flex flex-col items-center justify-center gap-1" style={{ minHeight: 96, background: catStyle.bg }}>
                         <CategoryIcon className="w-8 h-8" style={{ color: catStyle.color, opacity: 0.8 }} />
                         <span className="text-xs font-medium" style={{ color: catStyle.color }}>{listing.category}</span>
                       </div>
-                    ) : (
-                      <img
-                        src={listing.image_url}
-                        alt={listing.title}
-                        className={`w-full h-full object-cover ${listing.sold ? 'opacity-60' : ''}`}
-                        style={{ minHeight: 96 }}
-                      />
-                    )}
-                    {listing.sold && (
-                      <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.35)' }}>
-                        <span className="text-xs font-bold text-white px-2 py-0.5 rounded-full" style={{ background: '#374151' }}>Sold</span>
+                      {isSold && (
+                        <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.35)' }}>
+                          <span className="text-xs font-bold text-white px-2 py-0.5 rounded-full" style={{ background: '#374151' }}>Sold</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 p-3 flex flex-col justify-between min-w-0">
+                      <div>
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <p className="text-sm font-semibold leading-tight" style={{ color: isSold ? '#9a8070' : '#2a1f18' }}>{listing.title}</p>
+                          <span className="tag-sprout flex-shrink-0" style={{ background: '#FFF7ED', color: '#D97706' }}>Market</span>
+                        </div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: '#f4f3f0', color: '#5a4035' }}>{listing.condition}</span>
+                          <span className="text-xs" style={{ color: '#9a8070' }}>{listing.category}</span>
+                        </div>
                       </div>
-                    )}
-                  </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-base font-bold" style={{ color: isSold ? '#9a8070' : (priceInPounds === 0 ? '#16a34a' : 'var(--brand)') }}>
+                          {priceInPounds === 0 ? 'Free' : `£${priceInPounds.toFixed(2)}`}
+                        </span>
+                        <div className="flex items-center gap-1 text-xs" style={{ color: '#9a8070' }}>
+                          <MapPin className="w-3 h-3 flex-shrink-0" />
+                          <span className="truncate max-w-[80px]">{listing.postcode_district}</span>
+                          <span>· {formatRelativeTime(listing.created_at)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </>
                 );
               })()}
-              <div className="flex-1 p-3 flex flex-col justify-between min-w-0">
-                <div>
-                  <div className="flex items-start justify-between gap-2 mb-1">
-                    <p className="text-sm font-semibold leading-tight" style={{ color: listing.sold ? '#9a8070' : '#2a1f18' }}>{listing.title}</p>
-                    <span className="tag-sprout flex-shrink-0" style={{ background: '#FFF7ED', color: '#D97706' }}>Market</span>
-                  </div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: '#f4f3f0', color: '#5a4035' }}>{listing.condition}</span>
-                    <span className="text-xs" style={{ color: '#9a8070' }}>{listing.category}</span>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-base font-bold" style={{ color: listing.sold ? '#9a8070' : (listing.price === 0 ? '#16a34a' : 'var(--brand)') }}>
-                    {listing.price === 0 ? 'Free' : `£${listing.price}`}
-                  </span>
-                  <div className="flex items-center gap-1 text-xs" style={{ color: '#9a8070' }}>
-                    <MapPin className="w-3 h-3 flex-shrink-0" />
-                    <span className="truncate max-w-[80px]">{listing.neighborhood || listing.sellerName}</span>
-                    <span>· {formatRelativeTime(listing.created_at)}</span>
-                  </div>
-                </div>
-              </div>
             </article>
           ))}
         </div>
