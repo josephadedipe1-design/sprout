@@ -73,7 +73,7 @@ function AppContent() {
       if (myPostIds.length === 0) return;
 
       const { count: likeCount } = await supabase
-        .from('post_likes')
+        .from('likes')
         .select('user_id', { count: 'exact', head: true })
         .in('post_id', myPostIds)
         .neq('user_id', user!.id)

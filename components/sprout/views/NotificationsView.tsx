@@ -67,7 +67,7 @@ export default function NotificationsView({ onGoToFeed, onGoToMatching, onGoToMe
     const likesRaw: any[] = [];
     if (myPostIds.length > 0) {
       const { data } = await supabase
-        .from('post_likes')
+        .from('likes')
         .select('user_id, post_id, created_at')
         .in('post_id', myPostIds)
         .neq('user_id', user.id)

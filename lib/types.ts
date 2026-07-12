@@ -27,8 +27,8 @@ export interface DbProfile {
 
 export interface DbPost {
   id: string;
-  user_id: string;
-  type: string;
+  author_id: string;
+  post_type: string;
   body: string;
   is_anonymous: boolean;
   created_at: string;

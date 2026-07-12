@@ -220,7 +220,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
     // district is available (new account, district not yet set).
     let postsQuery = supabase
       .from('posts')
-      .select('*, post_likes(count), comment_count:comments(count)')
+      .select('*, likes(count), comment_count:comments(count)')
       .order('created_at', { ascending: false })
       .limit(50);
 
@@ -246,7 +246,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
     }
 
     const { data: myLikes } = await supabase
-      .from('post_likes')
+      .from('likes')
       .select('post_id')
       .eq('user_id', user.id);
 
@@ -266,7 +266,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
       created_at: p.created_at,
       author_id: p.author_id,
       profile: profileMap[p.author_id] ?? null,
-      likes: p.post_likes?.[0]?.count ?? 0,
+      likes: p.likes?.[0]?.count ?? 0,
       comments: p.comment_count?.[0]?.count ?? 0,
       liked: likedIds.has(p.id),
       saved: savedIds.has(p.id),
@@ -323,9 +323,9 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
   async function toggleLike(post: Post) {
     if (!user) return;
     if (post.liked) {
-      await supabase.from('post_likes').delete().eq('post_id', post.id).eq('user_id', user.id);
+      await supabase.from('likes').delete().eq('post_id', post.id).eq('user_id', user.id);
     } else {
-      await supabase.from('post_likes').insert({ post_id: post.id, user_id: user.id });
+      await supabase.from('likes').insert({ post_id: post.id, user_id: user.id });
     }
     setDbPosts(prev => prev.map(p =>
       p.id === post.id ? { ...p, liked: !p.liked, likes: p.liked ? p.likes - 1 : p.likes + 1 } : p
