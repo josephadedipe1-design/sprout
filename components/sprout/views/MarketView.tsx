@@ -58,27 +58,41 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
 
     if (error || !data) return;
 
-    // Fetch profiles separately (no direct FK to profiles table)
-    const userIds = Array.from(new Set(data.map((l: any) => l.user_id).filter(Boolean)));
+    // Fetch profiles separately
+    const sellerIds = Array.from(new Set(data.map((l: any) => l.seller_id).filter(Boolean)));
     const profileMap: Record<string, { name: string; neighborhood: string }> = {};
-    if (userIds.length > 0) {
+    if (sellerIds.length > 0) {
       const { data: profileRows } = await supabase
         .from('profiles')
         .select('id, name, neighborhood')
-        .in('id', userIds);
+        .in('id', sellerIds);
       (profileRows ?? []).forEach((p: any) => { profileMap[p.id] = p; });
+    }
+
+    // Fetch first image for each listing
+    const listingIds = data.map((l: any) => l.id);
+    const imageMap: Record<string, string> = {};
+    if (listingIds.length > 0) {
+      const { data: imageRows } = await supabase
+        .from('listing_images')
+        .select('listing_id, url, position')
+        .in('listing_id', listingIds)
+        .order('position', { ascending: true });
+      (imageRows ?? []).forEach((img: any) => {
+        if (!imageMap[img.listing_id]) imageMap[img.listing_id] = img.url;
+      });
     }
 
     const { data: myLikes } = await supabase.from('listing_saves').select('listing_id').eq('user_id', user.id);
     const savedIds = new Set((myLikes ?? []).map((l: any) => l.listing_id));
 
     const mapped: DisplayListing[] = (data as DbListing[]).map(l => ({
-      id: l.id, title: l.title, price: l.price, condition: l.condition, category: l.category,
-      seller: profileMap[l.user_id]?.name || 'Community Member',
-      neighborhood: profileMap[l.user_id]?.neighborhood || '',
-      image: l.image_url,
-      saved: savedIds.has(l.id), sold: l.sold,
-      isDb: true, isOwn: l.user_id === user.id,
+      id: l.id, title: l.title, price: l.price_pence / 100, condition: l.condition, category: l.category,
+      seller: profileMap[l.seller_id]?.name || 'Community Member',
+      neighborhood: profileMap[l.seller_id]?.neighborhood || '',
+      image: imageMap[l.id] || '',
+      saved: savedIds.has(l.id), sold: l.status === 'sold',
+      isDb: true, isOwn: l.seller_id === user.id,
     }));
 
     setDbListings(mapped);
@@ -124,7 +138,7 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
   }
 
   async function markSold(id: string) {
-    await supabase.from('listings').update({ sold: true }).eq('id', id);
+    await supabase.from('listings').update({ status: 'sold' }).eq('id', id);
     setDbListings(prev => prev.map(l => l.id === id ? { ...l, sold: true } : l));
   }
 
@@ -139,44 +153,61 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
     setSubmitting(true);
     setListError('');
 
+    // Step 1: upload image first if provided
     let imageUrl = '';
     if (imageFile) {
       try { imageUrl = await uploadImage(imageFile); }
-      catch { /* store empty, icon placeholder will show */ }
+      catch { /* proceed without image */ }
     }
 
-    const { error } = await supabase.from('listings').insert({
-      user_id: user.id,
+    const priceInPounds = newListing.free ? 0 : Math.floor(Number(newListing.price) || 0);
+
+    // Step 2: insert listing (no image_url)
+    const { data: inserted, error } = await supabase.from('listings').insert({
+      seller_id: user.id,
       title: newListing.title,
       description: newListing.description,
-      price: newListing.free ? 0 : Math.floor(Number(newListing.price) || 0),
+      price_pence: priceInPounds * 100,
       condition: newListing.condition,
       category: newListing.category,
-      image_url: imageUrl,
-    });
+      postcode_district: postcodeDistrict,
+      status: 'active',
+      offers_welcome: false,
+    }).select('id').single();
+
+    if (error) {
+      setSubmitting(false);
+      setListError(error.message || 'Failed to list item. Please try again.');
+      return;
+    }
+
+    // Step 3: insert image into listing_images if we have one
+    if (imageUrl && inserted?.id) {
+      await supabase.from('listing_images').insert({
+        listing_id: inserted.id,
+        url: imageUrl,
+        position: 0,
+      });
+    }
 
     setSubmitting(false);
-    if (!error) {
-      // Also create a feed post so the listing appears in the community feed
-      const finalPrice = newListing.free ? 0 : Math.floor(Number(newListing.price) || 0);
-      const priceStr = finalPrice === 0 ? 'free' : `£${finalPrice}`;
-      await supabase.from('posts').insert({
-        author_id: user.id,
-        post_type: 'listing',
-        body: `Just listed for sale: ${newListing.title} — ${newListing.condition} condition, ${priceStr}.`,
-        is_anonymous: false,
-        postcode_district: postcodeDistrict,
-      });
 
-      setNewListing({ title: '', category: 'Toys', price: '', free: false, condition: 'Good', description: '' });
-      setImageFile(null);
-      setImagePreview('');
-      setListError('');
-      setShowModal(false);
-      await loadListings();
-    } else {
-      setListError(error.message || 'Failed to list item. Please try again.');
-    }
+    // Also create a feed post
+    const priceStr = priceInPounds === 0 ? 'free' : `£${priceInPounds}`;
+    await supabase.from('posts').insert({
+      author_id: user.id,
+      post_type: 'listing',
+      body: `Just listed for sale: ${newListing.title} — ${newListing.condition} condition, ${priceStr}.`,
+      is_anonymous: false,
+      postcode_district: postcodeDistrict,
+    });
+
+    setNewListing({ title: '', category: 'Toys', price: '', free: false, condition: 'Good', description: '' });
+    setImageFile(null);
+    setImagePreview('');
+    setListError('');
+    setShowModal(false);
+    await loadListings();
   }
 
   function openModal() {

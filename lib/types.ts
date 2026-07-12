@@ -37,23 +37,25 @@ export interface DbPost {
 
 export interface DbPostWithMeta extends DbPost {
   likes_count: number;
-  comments_count: number;
+  replies_count: number;
   user_liked: boolean;
 }
 
 export interface DbListing {
   id: string;
-  user_id: string;
+  seller_id: string;
   title: string;
   description: string;
-  price: number;
+  price_pence: number;
   condition: string;
   category: string;
-  image_url: string;
-  sold: boolean;
+  postcode_district: string;
+  status: string;
+  offers_welcome: boolean;
   created_at: string;
   profiles?: DbProfile | null;
   saved?: boolean;
+  image_url?: string;
 }
 
 export interface DbConversation {
