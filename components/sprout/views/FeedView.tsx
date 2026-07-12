@@ -39,6 +39,10 @@ interface FeedListing {
   created_at: string;
 }
 
+type FeedItem =
+  | { kind: 'post'; data: Post }
+  | { kind: 'listing'; data: FeedListing };
+
 const TYPE_COLORS: Record<string, { bg: string; text: string; label: string }> = {
   question: { bg: '#FFF5EF', text: '#7D3C1A', label: 'Question' },
   support:  { bg: '#EFF4FF', text: '#2563EB', label: 'Support' },
@@ -47,8 +51,6 @@ const TYPE_COLORS: Record<string, { bg: string; text: string; label: string }> =
   tip:      { bg: '#F0FDF4', text: '#16A34A', label: 'Tip' },
   listing:  { bg: '#FFF7ED', text: '#D97706', label: 'Market' },
 };
-
-const PLACEHOLDER_IMG = 'https://images.pexels.com/photos/1148998/pexels-photo-1148998.jpeg';
 
 // Hardcoded neighbour map for UK postcode districts.
 // Each entry lists immediate neighbouring districts (roughly within 2 miles).
@@ -169,7 +171,6 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
   const { user, profile } = useAuth();
   const [dbPosts, setDbPosts] = useState<Post[]>([]);
   const [feedListings, setFeedListings] = useState<FeedListing[]>([]);
-  const [listingsLoaded, setListingsLoaded] = useState(false);
   const [activeFilter, setActiveFilter] = useState('All');
   const [loading, setLoading] = useState(true);
   const [isFirstInArea, setIsFirstInArea] = useState(false);
@@ -271,41 +272,40 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
     }));
 
     setDbPosts(mapped);
+
+    // Fetch active listings for the local area alongside posts
+    let listingsQuery = supabase
+      .from('listings')
+      .select('*')
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if (userDistrict) {
+      const localDistricts = getLocalDistricts(userDistrict);
+      listingsQuery = listingsQuery.in('postcode_district', localDistricts);
+    }
+
+    const { data: listingsData } = await listingsQuery;
+    if (listingsData) {
+      setFeedListings((listingsData as DbListing[]).map(l => ({
+        id: l.id,
+        title: l.title,
+        price_pence: l.price_pence,
+        condition: l.condition,
+        category: l.category,
+        seller_id: l.seller_id,
+        postcode_district: l.postcode_district,
+        status: l.status,
+        offers_welcome: l.offers_welcome,
+        created_at: l.created_at,
+      })));
+    }
+
     setLoading(false);
   }, [user]);
 
-  const loadListings = useCallback(async () => {
-    if (!user || listingsLoaded) return;
-    const { data, error } = await supabase
-      .from('listings')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(50);
-
-    if (error || !data) return;
-
-    const mapped: FeedListing[] = (data as DbListing[]).map(l => ({
-      id: l.id,
-      title: l.title,
-      price_pence: l.price_pence,
-      condition: l.condition,
-      category: l.category,
-      seller_id: l.seller_id,
-      postcode_district: l.postcode_district,
-      status: l.status,
-      offers_welcome: l.offers_welcome,
-      created_at: l.created_at,
-    }));
-
-    setFeedListings(mapped);
-    setListingsLoaded(true);
-  }, [user, listingsLoaded]);
-
   useEffect(() => { loadPosts(); }, [loadPosts]);
-
-  useEffect(() => {
-    if (activeFilter === 'Market') loadListings();
-  }, [activeFilter, loadListings]);
 
   async function toggleLike(post: Post) {
     if (!user) return;
@@ -373,10 +373,25 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
   }
 
   const filters = ['All', 'Questions', 'Meetups', 'Market', 'Support'];
-  const filtered = activeFilter === 'All' ? dbPosts : dbPosts.filter((p) => {
-    const map: Record<string, string> = { Questions: 'question', Support: 'support', Meetups: 'meetup', Market: 'market' };
-    return p.post_type === map[activeFilter];
-  });
+
+  // Build a unified feed combining posts and listings, sorted by created_at desc
+  const feedItems: FeedItem[] = (() => {
+    if (activeFilter === 'Market') {
+      return feedListings.map(l => ({ kind: 'listing' as const, data: l }));
+    }
+    if (activeFilter !== 'All') {
+      const typeMap: Record<string, string> = { Questions: 'question', Support: 'support', Meetups: 'meetup' };
+      return dbPosts
+        .filter(p => p.post_type === typeMap[activeFilter])
+        .map(p => ({ kind: 'post' as const, data: p }));
+    }
+    // 'All': merge posts and active listings, sort by created_at
+    const postItems: FeedItem[] = dbPosts.map(p => ({ kind: 'post' as const, data: p }));
+    const listingItems: FeedItem[] = feedListings.map(l => ({ kind: 'listing' as const, data: l }));
+    return [...postItems, ...listingItems].sort((a, b) =>
+      new Date(b.data.created_at).getTime() - new Date(a.data.created_at).getTime()
+    );
+  })();
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 pb-24 lg:pb-6">
@@ -408,7 +423,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
       </div>
 
       {/* Loading skeleton */}
-      {loading && dbPosts.length === 0 && activeFilter !== 'Market' && (
+      {loading && (
         <div className="space-y-4">
           {[1, 2].map(i => (
             <div key={i} className="card-sprout p-4 animate-pulse">
@@ -428,88 +443,23 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
         </div>
       )}
 
-      {/* Market listings view */}
-      {activeFilter === 'Market' && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-sm font-medium" style={{ color: '#9a8070' }}>
-              {feedListings.length} item{feedListings.length !== 1 ? 's' : ''} in the marketplace
-            </p>
-            <button onClick={onGoToMarket} className="text-sm font-semibold" style={{ color: 'var(--brand)' }}>
-              Browse all →
-            </button>
-          </div>
-
-          {feedListings.length === 0 && listingsLoaded && (
-            <div className="flex flex-col items-center text-center py-14">
-              <div className="w-14 h-14 rounded-full flex items-center justify-center mb-4" style={{ background: '#FFF7ED' }}>
-                <ShoppingBag className="w-7 h-7" style={{ color: '#D97706' }} />
-              </div>
-              <p className="text-base font-semibold mb-1" style={{ color: '#2a1f18' }}>No items listed yet</p>
-              <p className="text-sm mb-5" style={{ color: '#9a8070' }}>Be the first to list something in the marketplace.</p>
-              <button onClick={onGoToMarket} className="btn-brand text-sm">+ List an Item</button>
-            </div>
-          )}
-
-            {feedListings.map((listing) => (
-            <article
-              key={listing.id}
-              className="card-sprout overflow-hidden cursor-pointer hover:shadow-md transition-shadow flex"
-              onClick={() => onOpenListing(listing.id)}
-            >
-              {(() => {
-                const isSold = listing.status === 'sold';
-                const priceInPounds = listing.price_pence / 100;
-                const catStyle = getCategoryStyle(listing.category);
-                const CategoryIcon = CATEGORY_ICONS[listing.category] ?? ShoppingBag;
-                return (
-                  <>
-                    <div className="relative flex-shrink-0 w-28 sm:w-36" style={{ minHeight: 96 }}>
-                      <div className="w-full h-full flex flex-col items-center justify-center gap-1" style={{ minHeight: 96, background: catStyle.bg }}>
-                        <CategoryIcon className="w-8 h-8" style={{ color: catStyle.color, opacity: 0.8 }} />
-                        <span className="text-xs font-medium" style={{ color: catStyle.color }}>{listing.category}</span>
-                      </div>
-                      {isSold && (
-                        <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.35)' }}>
-                          <span className="text-xs font-bold text-white px-2 py-0.5 rounded-full" style={{ background: '#374151' }}>Sold</span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex-1 p-3 flex flex-col justify-between min-w-0">
-                      <div>
-                        <div className="flex items-start justify-between gap-2 mb-1">
-                          <p className="text-sm font-semibold leading-tight" style={{ color: isSold ? '#9a8070' : '#2a1f18' }}>{listing.title}</p>
-                          <span className="tag-sprout flex-shrink-0" style={{ background: '#FFF7ED', color: '#D97706' }}>Market</span>
-                        </div>
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: '#f4f3f0', color: '#5a4035' }}>{listing.condition}</span>
-                          <span className="text-xs" style={{ color: '#9a8070' }}>{listing.category}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-base font-bold" style={{ color: isSold ? '#9a8070' : (priceInPounds === 0 ? '#16a34a' : 'var(--brand)') }}>
-                          {priceInPounds === 0 ? 'Free' : `£${priceInPounds.toFixed(2)}`}
-                        </span>
-                        <div className="flex items-center gap-1 text-xs" style={{ color: '#9a8070' }}>
-                          <MapPin className="w-3 h-3 flex-shrink-0" />
-                          <span className="truncate max-w-[80px]">{listing.postcode_district}</span>
-                          <span>· {formatRelativeTime(listing.created_at)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                );
-              })()}
-            </article>
-          ))}
+      {/* Market filter header */}
+      {!loading && activeFilter === 'Market' && (
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-sm font-medium" style={{ color: '#9a8070' }}>
+            {feedListings.length} item{feedListings.length !== 1 ? 's' : ''} in the marketplace
+          </p>
+          <button onClick={onGoToMarket} className="text-sm font-semibold" style={{ color: 'var(--brand)' }}>
+            Browse all →
+          </button>
         </div>
       )}
 
-      {/* Posts */}
-      {activeFilter !== 'Market' && !loading && (
+      {/* Unified feed */}
+      {!loading && (
         <div className="space-y-4">
           {/* Sprout welcome post — shown for new users in their first 72h */}
-          {isNewUser && (
+          {isNewUser && activeFilter === 'All' && (
             <article className="card-sprout overflow-hidden">
               <div className="p-4">
                 <div className="flex items-start justify-between mb-3">
@@ -533,21 +483,85 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
               </div>
             </article>
           )}
-          {filtered.length === 0 && (
+
+          {/* Empty state */}
+          {feedItems.length === 0 && (
             <div className="flex flex-col items-center text-center py-14">
-              <div className="w-14 h-14 rounded-full flex items-center justify-center mb-4" style={{ background: 'var(--brand-light)' }}>
-                <MessageCircle className="w-7 h-7" style={{ color: 'var(--brand)' }} />
+              <div className="w-14 h-14 rounded-full flex items-center justify-center mb-4" style={{ background: activeFilter === 'Market' ? '#FFF7ED' : 'var(--brand-light)' }}>
+                {activeFilter === 'Market'
+                  ? <ShoppingBag className="w-7 h-7" style={{ color: '#D97706' }} />
+                  : <MessageCircle className="w-7 h-7" style={{ color: 'var(--brand)' }} />
+                }
               </div>
-              <p className="text-base font-semibold mb-1" style={{ color: '#2a1f18' }}>Nothing here yet</p>
-              <p className="text-sm mb-5" style={{ color: '#9a8070' }}>
-                {activeFilter === 'All'
-                  ? 'Be the first to post something for your community.'
-                  : `No ${activeFilter.toLowerCase()} posts yet. Try a different filter or be the first!`}
+              <p className="text-base font-semibold mb-1" style={{ color: '#2a1f18' }}>
+                {activeFilter === 'Market' ? 'No items listed nearby yet' : 'Nothing here yet'}
               </p>
-              <button onClick={onNewPost} className="btn-brand text-sm">+ Share something</button>
+              <p className="text-sm mb-5" style={{ color: '#9a8070' }}>
+                {activeFilter === 'Market'
+                  ? 'Be the first to list something in the marketplace.'
+                  : activeFilter === 'All'
+                    ? 'Be the first to post something for your community.'
+                    : `No ${activeFilter.toLowerCase()} posts yet. Try a different filter or be the first!`}
+              </p>
+              {activeFilter === 'Market'
+                ? <button onClick={onGoToMarket} className="btn-brand text-sm">+ List an Item</button>
+                : <button onClick={onNewPost} className="btn-brand text-sm">+ Share something</button>
+              }
             </div>
           )}
-          {filtered.map((post) => {
+
+          {/* Feed items — posts and listings merged */}
+          {feedItems.map((item) => {
+            if (item.kind === 'listing') {
+              const listing = item.data;
+              const isSold = listing.status === 'sold';
+              const priceInPounds = listing.price_pence / 100;
+              const catStyle = getCategoryStyle(listing.category);
+              const CategoryIcon = CATEGORY_ICONS[listing.category] ?? ShoppingBag;
+              return (
+                <article
+                  key={`listing-${listing.id}`}
+                  className="card-sprout overflow-hidden cursor-pointer hover:shadow-md transition-shadow flex"
+                  onClick={() => onOpenListing(listing.id)}
+                >
+                  <div className="relative flex-shrink-0 w-28 sm:w-36" style={{ minHeight: 96 }}>
+                    <div className="w-full h-full flex flex-col items-center justify-center gap-1" style={{ minHeight: 96, background: catStyle.bg }}>
+                      <CategoryIcon className="w-8 h-8" style={{ color: catStyle.color, opacity: 0.8 }} />
+                      <span className="text-xs font-medium" style={{ color: catStyle.color }}>{listing.category}</span>
+                    </div>
+                    {isSold && (
+                      <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.35)' }}>
+                        <span className="text-xs font-bold text-white px-2 py-0.5 rounded-full" style={{ background: '#374151' }}>Sold</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 p-3 flex flex-col justify-between min-w-0">
+                    <div>
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <p className="text-sm font-semibold leading-tight" style={{ color: isSold ? '#9a8070' : '#2a1f18' }}>{listing.title}</p>
+                        <span className="tag-sprout flex-shrink-0" style={{ background: '#FFF7ED', color: '#D97706' }}>Market</span>
+                      </div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: '#f4f3f0', color: '#5a4035' }}>{listing.condition}</span>
+                        <span className="text-xs" style={{ color: '#9a8070' }}>{listing.category}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-base font-bold" style={{ color: isSold ? '#9a8070' : (priceInPounds === 0 ? '#16a34a' : 'var(--brand)') }}>
+                        {priceInPounds === 0 ? 'Free' : `£${priceInPounds.toFixed(2)}`}
+                      </span>
+                      <div className="flex items-center gap-1 text-xs" style={{ color: '#9a8070' }}>
+                        <MapPin className="w-3 h-3 flex-shrink-0" />
+                        <span className="truncate max-w-[80px]">{listing.postcode_district}</span>
+                        <span>· {formatRelativeTime(listing.created_at)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              );
+            }
+
+            const post = item.data;
             const typeInfo = TYPE_COLORS[post.post_type] ?? TYPE_COLORS.question;
             const authorName = post.is_anonymous ? 'Anonymous Parent' : (post.profile?.name || 'Community Member');
             const authorAvatar = post.is_anonymous ? '' : (post.profile?.avatar_url || '');
@@ -555,7 +569,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
             const timeAgo = formatRelativeTime(post.created_at);
 
             return (
-              <article key={post.id} className="card-sprout overflow-hidden cursor-pointer hover:shadow-md transition-shadow" onClick={() => onOpenThread(post.id)}>
+              <article key={`post-${post.id}`} className="card-sprout overflow-hidden cursor-pointer hover:shadow-md transition-shadow" onClick={() => onOpenThread(post.id)}>
                 <div className="p-4">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2.5">
