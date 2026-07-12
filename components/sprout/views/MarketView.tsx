@@ -68,11 +68,11 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
 
     // Fetch profiles separately
     const sellerIds = Array.from(new Set(data.map((l: any) => l.seller_id).filter(Boolean)));
-    const profileMap: Record<string, { name: string; neighborhood: string }> = {};
+    const profileMap: Record<string, { first_name: string }> = {};
     if (sellerIds.length > 0) {
       const { data: profileRows } = await supabase
         .from('profiles')
-        .select('id, name, neighborhood')
+        .select('id, first_name')
         .in('id', sellerIds);
       (profileRows ?? []).forEach((p: any) => { profileMap[p.id] = p; });
     }
@@ -96,8 +96,8 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
 
     const mapped: DisplayListing[] = (data as DbListing[]).map(l => ({
       id: l.id, title: l.title, price: l.price_pence / 100, condition: l.condition, category: l.category,
-      seller: profileMap[l.seller_id]?.name || 'Community Member',
-      neighborhood: profileMap[l.seller_id]?.neighborhood || '',
+      seller: profileMap[l.seller_id]?.first_name || 'Community Member',
+      neighborhood: '',
       postcode_district: l.postcode_district,
       image: imageMap[l.id] || '',
       saved: savedIds.has(l.id), sold: l.status === 'sold',
@@ -135,8 +135,8 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
   }
 
   async function uploadImage(file: File): Promise<string> {
-    const ext = file.name.split('.').pop() ?? 'jpg';
-    const path = `${user!.id}/${Date.now()}.${ext}`;
+    const safeName = file.name.replace(/[^a-zA-Z0-9.]/g, '_');
+    const path = `${user!.id}/${Date.now()}-${safeName}`;
     const { error } = await supabase.storage.from('listing-images').upload(path, file, { upsert: false });
     if (error) throw error;
     const { data: { publicUrl } } = supabase.storage.from('listing-images').getPublicUrl(path);
@@ -217,7 +217,6 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
       body: `Just listed for sale: ${newListing.title} — ${newListing.condition} condition, ${priceStr}.`,
       is_anonymous: false,
       postcode_district: postcodeDistrict,
-      listing_id: inserted?.id,
     });
 
     setNewListing({ title: '', category: 'Toys', price: '', free: false, condition: 'good', description: '' });
@@ -336,7 +335,7 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
                 )}
               </div>
               <div className="flex items-center gap-1 text-xs mt-1" style={{ color: '#9a8070' }}>
-                <MapPin className="w-3 h-3" />{formatLocation(listing.postcode_district) || listing.neighborhood || listing.seller}
+                <MapPin className="w-3 h-3" />{formatLocation(listing.postcode_district) || listing.seller}
               </div>
             </div>
           </div>

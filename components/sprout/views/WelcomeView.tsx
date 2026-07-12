@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import type { DbProfile } from '@/lib/types';
 import { enrichProfilesWithChildren } from '@/lib/profiles';
+import { formatLocation } from '@/lib/utils';
 
 interface WelcomeViewProps {
   onDone: () => void;
@@ -72,8 +73,7 @@ export default function WelcomeView({ onDone, onGoToMatching }: WelcomeViewProps
   const district = profile?.postcode_district || '';
 
   function buildInviteMessage() {
-    const loc = district || (profile?.neighborhood ? profile.neighborhood : '');
-    const base = loc ? `Hey! I've just joined Sprout — a community app for parents in ${loc}.` : "Hey! I've just joined Sprout — a community app for local parents.";
+    const base = district ? `Hey! I've just joined Sprout — a community app for parents in ${district}.` : "Hey! I've just joined Sprout — a community app for local parents.";
     return `${base} Come join and connect with families near you! ${typeof window !== 'undefined' ? window.location.origin : ''}`;
   }
 
@@ -153,17 +153,17 @@ export default function WelcomeView({ onDone, onGoToMatching }: WelcomeViewProps
                 {nearbyParents.slice(0, 4).map((p) => (
                   <div key={p.id} className="flex items-center gap-3">
                     {p.avatar_url ? (
-                      <img src={p.avatar_url} alt={p.name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                      <img src={p.avatar_url} alt={p.first_name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
                     ) : (
                       <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0" style={{ background: 'var(--brand)' }}>
-                        {p.name.charAt(0)}
+                        {p.first_name.charAt(0)}
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold" style={{ color: '#2a1f18' }}>{p.name}</p>
+                      <p className="text-sm font-semibold" style={{ color: '#2a1f18' }}>{p.first_name}</p>
                       <div className="flex items-center gap-1 text-xs" style={{ color: '#9a8070' }}>
                         <MapPin className="w-2.5 h-2.5" />
-                        {p.neighborhood || p.city || 'Nearby'}
+                        {formatLocation(p.postcode_district || '') || 'Nearby'}
                         {p.children_ages && p.children_ages.length > 0 && (
                           <span style={{ color: '#c4a090' }}>· {p.children_ages[0]}</span>
                         )}
@@ -188,7 +188,7 @@ export default function WelcomeView({ onDone, onGoToMatching }: WelcomeViewProps
                         <img key={p.id} src={p.avatar_url} alt="" className="w-6 h-6 rounded-full object-cover border-2 border-white" />
                       ) : (
                         <div key={p.id} className="w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-xs font-bold text-white" style={{ background: 'var(--brand)' }}>
-                          {p.name.charAt(0)}
+                          {p.first_name.charAt(0)}
                         </div>
                       )
                     ))}

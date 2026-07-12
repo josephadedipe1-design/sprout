@@ -58,7 +58,7 @@ export default function NewPostView({ onBack, onPublish, onListInMarket }: NewPo
   }
 
   const selectedType = POST_TYPES.find((t) => t.id === postType);
-  const neighborhood = profile?.neighborhood || profile?.city || 'your area';
+  const neighborhood = profile?.postcode_district || 'your area';
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 pb-24 lg:pb-6">

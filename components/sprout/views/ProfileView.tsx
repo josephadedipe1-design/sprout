@@ -57,8 +57,8 @@ export default function ProfileView({ onEditProfile, onSettings }: ProfileViewPr
         supabase.from('posts').select('id', { count: 'exact', head: true }).eq('author_id', user!.id),
         supabase.from('match_requests').select('id', { count: 'exact', head: true })
           .or(`from_user_id.eq.${user!.id},to_user_id.eq.${user!.id}`)
-          .eq('status', 'accepted'),
-        supabase.from('listings').select('id', { count: 'exact', head: true }).eq('user_id', user!.id),
+          .eq('status', 'connected'),
+        supabase.from('listings').select('id', { count: 'exact', head: true }).eq('seller_id', user!.id),
       ]);
       setStats({
         posts: postsRes.count ?? 0,
@@ -70,7 +70,7 @@ export default function ProfileView({ onEditProfile, onSettings }: ProfileViewPr
     async function loadActivity() {
       const [postsRes, listingsRes] = await Promise.all([
         supabase.from('posts').select('id, body, created_at').eq('author_id', user!.id).order('created_at', { ascending: false }).limit(5),
-        supabase.from('listings').select('id, title, price, created_at').eq('user_id', user!.id).order('created_at', { ascending: false }).limit(3),
+        supabase.from('listings').select('id, title, price_pence, created_at').eq('seller_id', user!.id).order('created_at', { ascending: false }).limit(3),
       ]);
 
       const items: ActivityItem[] = [];
@@ -89,7 +89,7 @@ export default function ProfileView({ onEditProfile, onSettings }: ProfileViewPr
         type: 'listing',
         time: formatRelativeTime(l.created_at),
         created_at: l.created_at,
-        text: `Listed "${l.title}" on the Market${l.price > 0 ? ` for $${l.price}` : ' for free'}.`,
+        text: `Listed "${l.title}" on the Market${l.price_pence > 0 ? ` for £${(l.price_pence / 100).toFixed(2)}` : ' for free'}.`,
         reactions: 0,
       }));
 
@@ -101,14 +101,12 @@ export default function ProfileView({ onEditProfile, onSettings }: ProfileViewPr
     loadActivity();
   }, [user]);
 
-  const firstName = profile?.first_name || profile?.name?.split(' ')[0] || '';
-  const lastInitial = profile?.last_initial || (profile?.name?.split(' ').length ?? 0) > 1
-    ? (profile?.last_initial || profile?.name?.split(' ').pop()?.[0] || '')
-    : '';
+  const firstName = profile?.first_name || '';
+  const lastInitial = profile?.last_initial || '';
   const displayName = firstName
     ? `${firstName}${lastInitial ? ' ' + lastInitial + '.' : ''}`
     : 'You';
-  const location = formatLocation(profile?.postcode_district || '') || [profile?.neighborhood, profile?.city].filter(Boolean).join(', ') || 'Location not set';
+  const location = formatLocation(profile?.postcode_district || '') || 'Location not set';
   const bio = profile?.bio || '';
   const interests = profile?.interests ?? [];
   const avatarUrl = profile?.avatar_url || '';

@@ -66,22 +66,22 @@ export default function UKMapInner({ profiles, center, zoom = 11, currentUserId,
         <Marker
           key={p.id}
           position={[p.lat!, p.lng!]}
-          icon={brandIcon(p.name.charAt(0).toUpperCase(), p.id === currentUserId)}
+          icon={brandIcon(p.first_name.charAt(0).toUpperCase(), p.id === currentUserId)}
           eventHandlers={onPinClick ? { click: () => onPinClick(p) } : {}}
         >
           <Popup>
             <div style={{ minWidth: 140 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 {p.avatar_url ? (
-                  <img src={p.avatar_url} alt={p.name} style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover' }} />
+                  <img src={p.avatar_url} alt={p.first_name} style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover' }} />
                 ) : (
                   <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#c87e5a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: 14 }}>
-                    {p.name.charAt(0)}
+                    {p.first_name.charAt(0)}
                   </div>
                 )}
                 <div>
-                  <p style={{ fontWeight: 700, fontSize: 13, margin: 0, color: '#2a1f18' }}>{p.id === currentUserId ? 'You' : p.name}</p>
-                  {p.neighborhood && <p style={{ fontSize: 11, color: '#9a8070', margin: 0 }}>{p.neighborhood}</p>}
+                  <p style={{ fontWeight: 700, fontSize: 13, margin: 0, color: '#2a1f18' }}>{p.id === currentUserId ? 'You' : p.first_name}</p>
+                  {p.postcode_district && <p style={{ fontSize: 11, color: '#9a8070', margin: 0 }}>{p.postcode_district}</p>}
                 </div>
               </div>
               {p.parent_type && <p style={{ fontSize: 11, color: '#7a6055', marginTop: 4, marginBottom: 0, textTransform: 'capitalize' }}>{p.parent_type}</p>}

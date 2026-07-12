@@ -174,7 +174,7 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
         </button>
         <div>
           <h1 className="text-2xl font-bold" style={{ color: '#2a1f18' }}>Settings</h1>
-          <p className="text-sm" style={{ color: '#9a8070' }}>{profile?.name || 'Your account'}</p>
+          <p className="text-sm" style={{ color: '#9a8070' }}>{profile?.first_name || 'Your account'}</p>
         </div>
       </div>
 

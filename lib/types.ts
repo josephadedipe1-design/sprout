@@ -7,12 +7,9 @@ export interface DbChild {
 
 export interface DbProfile {
   id: string;
-  name: string;
   first_name: string;
   last_initial: string;
   bio: string;
-  neighborhood: string;
-  city: string;
   avatar_url: string;
   parent_type: string;
   interests: string[];
@@ -73,7 +70,7 @@ export interface DbMessage {
   id: string;
   conversation_id: string;
   sender_id: string;
-  content: string;
+  body: string;
   created_at: string;
 }
 

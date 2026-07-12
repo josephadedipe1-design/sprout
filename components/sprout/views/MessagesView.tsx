@@ -161,8 +161,8 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
     const listingMap: Record<string, ListingSnap> = {};
     if (listingIds.length > 0) {
       const { data: lRows } = await supabase
-        .from('listings').select('id, title, price, condition, category, image_url').in('id', listingIds);
-      (lRows ?? []).forEach((l: any) => { listingMap[l.id] = l; });
+        .from('listings').select('id, title, price_pence, condition, category').in('id', listingIds);
+      (lRows ?? []).forEach((l: any) => { listingMap[l.id] = { ...l, price: l.price_pence / 100, image_url: '' }; });
     }
 
     const mapped: ConvDisplay[] = rows.map((c: any) => {
@@ -170,7 +170,7 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
       const other = profileMap[otherId];
       return {
         id: c.id,
-        name: other?.name || 'Unknown',
+        name: other?.first_name || 'Unknown',
         avatar: other?.avatar_url || '',
         lastMsg: c.last_message || 'No messages yet',
         time: c.last_message_at ? formatTime(c.last_message_at) : '',
@@ -194,7 +194,7 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
       .from('match_requests')
       .select('*')
       .or(`from_user_id.eq.${user.id},to_user_id.eq.${user.id}`)
-      .eq('status', 'accepted');
+      .eq('status', 'connected');
 
     const rows = connData ?? [];
     const otherIds = rows.map((c: any) =>
@@ -275,7 +275,7 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
     const mapped: MsgDisplay[] = (data ?? []).map((m: DbMessage) => ({
       id: m.id,
       from: m.sender_id === user?.id ? 'me' : 'them',
-      text: m.content,
+      text: m.body,
       time: formatMsgTime(m.created_at),
     }));
 
@@ -311,7 +311,7 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
     const { data: inserted } = await supabase.from('messages').insert({
       conversation_id: activeId,
       sender_id: user.id,
-      content: text,
+      body: text,
     }).select().maybeSingle();
 
     // Update time on the optimistic message if realtime hasn't fired yet
@@ -348,13 +348,13 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
             const display: MsgDisplay = {
               id: msg.id,
               from: msg.sender_id === user.id ? 'me' : 'them',
-              text: msg.content,
+              text: msg.body,
               time: formatMsgTime(msg.created_at),
             };
             setMessages(prev => {
               // Replace optimistic message if it matches content + sender, else append
               const optimisticIdx = prev.findIndex(
-                m => m.id.startsWith('tmp-') && m.text === msg.content && m.from === display.from
+                m => m.id.startsWith('tmp-') && m.text === msg.body && m.from === display.from
               );
               if (optimisticIdx !== -1) {
                 const next = [...prev];
@@ -605,7 +605,7 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
                 </div>
               ) : (
                 connections
-                  .filter(p => !connSearch.trim() || p.name.toLowerCase().includes(connSearch.toLowerCase()))
+                  .filter(p => !connSearch.trim() || p.first_name.toLowerCase().includes(connSearch.toLowerCase()))
                   .map((p) => (
                     <button
                       key={p.id}
@@ -614,15 +614,15 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
                       style={{ borderColor: 'var(--border-color)' }}
                     >
                       {p.avatar_url ? (
-                        <img src={p.avatar_url} alt={p.name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                        <img src={p.avatar_url} alt={p.first_name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
                       ) : (
                         <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white text-sm flex-shrink-0" style={{ background: 'var(--brand)' }}>
-                          {p.name.charAt(0)}
+                          {p.first_name.charAt(0)}
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold" style={{ color: '#2a1f18' }}>{p.name}</p>
-                        <p className="text-xs" style={{ color: '#9a8070' }}>{p.postcode_district ? formatLocation(p.postcode_district) : (p.neighborhood || p.city || 'Nearby')}</p>
+                        <p className="text-sm font-semibold" style={{ color: '#2a1f18' }}>{p.first_name}</p>
+                        <p className="text-xs" style={{ color: '#9a8070' }}>{p.postcode_district ? formatLocation(p.postcode_district) : 'Nearby'}</p>
                       </div>
                     </button>
                   ))

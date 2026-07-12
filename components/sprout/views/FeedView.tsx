@@ -197,7 +197,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
     // Check if user is first in their local area
     const { data: myProfile } = await supabase
       .from('profiles')
-      .select('postcode_district, neighborhood')
+      .select('postcode_district')
       .eq('id', user.id)
       .maybeSingle();
 
@@ -210,7 +210,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
         .ilike('postcode_district', `${userDistrict}%`);
       if ((count ?? 0) <= 1) {
         setIsFirstInArea(true);
-        setAreaName((myProfile as any).neighborhood || userDistrict);
+        setAreaName(userDistrict);
       }
     }
 
@@ -563,11 +563,11 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
 
             const post = item.data;
             const typeInfo = TYPE_COLORS[post.post_type] ?? TYPE_COLORS.question;
-            const authorName = post.is_anonymous ? 'Anonymous Parent' : (post.profile?.name || 'Community Member');
+            const authorName = post.is_anonymous ? 'Anonymous Parent' : (post.profile?.first_name || 'Community Member');
             const authorAvatar = post.is_anonymous ? '' : (post.profile?.avatar_url || '');
             const authorLocation = post.profile?.postcode_district
               ? formatLocation(post.profile.postcode_district)
-              : (post.profile?.neighborhood || '');
+              : '';
             const timeAgo = formatRelativeTime(post.created_at);
 
             return (

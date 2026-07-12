@@ -3,6 +3,7 @@
 import { Leaf, Home, MessageCircle, Users, Bell, User, Search, Plus, LogOut, ShoppingBag } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
+import { formatLocation } from '@/lib/utils';
 
 type View = 'feed' | 'market' | 'messages' | 'matching' | 'notifications' | 'profile' | 'search';
 
@@ -32,8 +33,8 @@ export default function Sidebar({ active, onNav, onNewPost, hasUnread = false, u
     router.push('/');
   }
 
-  const displayName = profile?.name || 'You';
-  const displayLocation = profile?.neighborhood || profile?.city || '';
+  const displayName = profile?.first_name || 'You';
+  const displayLocation = formatLocation(profile?.postcode_district || '');
   const avatarUrl = profile?.avatar_url || '';
   const initials = displayName.charAt(0).toUpperCase();
 

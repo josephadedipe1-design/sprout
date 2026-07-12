@@ -48,10 +48,10 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
         ? `${profile.first_name}${profile.last_initial ? ' ' + profile.last_initial : ''}`
         : '';
       setForm({
-        name: profile.name || fallbackName,
+        name: (profile as any).name || fallbackName,
         bio: profile.bio,
-        neighborhood: profile.neighborhood,
-        city: profile.city,
+        neighborhood: (profile as any).neighborhood || '',
+        city: (profile as any).city || '',
         postcode: profile.postcode_district ?? '',
         interests: profile.interests ?? [],
       });
@@ -72,11 +72,11 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
     setUploading(true);
     setError('');
     try {
-      const ext = file.name.split('.').pop() ?? 'jpg';
-      const path = `${user.id}/avatar.${ext}`;
+      const safeName = file.name.replace(/[^a-zA-Z0-9.]/g, '_');
+      const path = `${user.id}/${Date.now()}-${safeName}`;
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(path, file, { upsert: true });
+        .upload(path, file, { upsert: false });
       if (uploadError) throw uploadError;
       const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path);
       const bustedUrl = `${publicUrl}?t=${Date.now()}`;

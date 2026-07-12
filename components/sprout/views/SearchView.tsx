@@ -58,7 +58,7 @@ export default function SearchView({ onBack }: SearchViewProps) {
       supabase
         .from('profiles')
         .select('*')
-        .ilike('name', term)
+        .ilike('first_name', term)
         .limit(5),
       supabase
         .from('posts')
@@ -195,14 +195,14 @@ export default function SearchView({ onBack }: SearchViewProps) {
                 {results.profiles.map((p) => (
                   <div key={p.id} className="card-sprout p-3 flex items-center gap-3">
                     {p.avatar_url ? (
-                      <img src={p.avatar_url} alt={p.name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                      <img src={p.avatar_url} alt={p.first_name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
                     ) : (
                       <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0" style={{ background: 'var(--brand)' }}>
-                        {p.name.charAt(0).toUpperCase()}
+                        {p.first_name.charAt(0).toUpperCase()}
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold truncate" style={{ color: '#2a1f18' }}>{p.name}</p>
+                      <p className="text-sm font-semibold truncate" style={{ color: '#2a1f18' }}>{p.first_name}</p>
                       {p.postcode_district && (
                         <p className="text-xs flex items-center gap-1" style={{ color: '#9a8070' }}>
                           <MapPin className="w-3 h-3" />{formatLocation(p.postcode_district)}
@@ -223,7 +223,7 @@ export default function SearchView({ onBack }: SearchViewProps) {
                   <div key={p.id} className="card-sprout p-4">
                     <p className="text-sm mb-2 leading-relaxed" style={{ color: '#2a1f18', lineHeight: 1.5 }}>{p.body}</p>
                     <p className="text-xs" style={{ color: '#9a8070' }}>
-                      {p.profile?.name ?? 'Community Member'} · {formatRelativeTime(p.created_at)}
+                      {p.profile?.first_name ?? 'Community Member'} · {formatRelativeTime(p.created_at)}
                     </p>
                   </div>
                 ))}

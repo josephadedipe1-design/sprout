@@ -141,7 +141,7 @@ export default function ThreadView({ postId, onBack }: ThreadViewProps) {
     setSubmitting(false);
   }
 
-  const authorName = post ? (post.is_anonymous ? 'Anonymous Parent' : post.profile?.name ?? 'Community Member') : '';
+  const authorName = post ? (post.is_anonymous ? 'Anonymous Parent' : post.profile?.first_name ?? 'Community Member') : '';
   const authorAvatar = post && !post.is_anonymous ? post.profile?.avatar_url ?? '' : '';
 
   return (
@@ -215,7 +215,7 @@ export default function ThreadView({ postId, onBack }: ThreadViewProps) {
             ) : (
               <div className="space-y-3">
                 {replies.map((r) => {
-                  const name = r.profile?.name ?? 'Community Member';
+                  const name = r.profile?.first_name ?? 'Community Member';
                   const avatar = r.profile?.avatar_url ?? '';
                   return (
                     <div key={r.id} className="flex gap-2.5">
@@ -258,7 +258,7 @@ export default function ThreadView({ postId, onBack }: ThreadViewProps) {
               className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
               style={{ background: 'var(--brand)' }}
             >
-              {(profile?.name ?? 'Y').charAt(0)}
+              {(profile?.first_name ?? 'Y').charAt(0)}
             </div>
           )}
           <input

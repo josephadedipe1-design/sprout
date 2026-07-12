@@ -165,11 +165,6 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
 
     setEditSubmitting(false);
     if (!error) {
-      const priceStr = priceInPounds === 0 ? 'free' : `£${priceInPounds.toFixed(2)}`;
-      await supabase.from('posts')
-        .update({ body: `Just listed for sale: ${editForm.title} — ${editForm.condition} condition, ${priceStr}.` })
-        .eq('listing_id', listing.id);
-
       setListing(l => l ? {
         ...l,
         title: editForm.title,
@@ -211,10 +206,10 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
   const seller = listing.profiles;
   const hasRealImage = !!primaryImageUrl;
   const priceInPounds = listing.price_pence / 100;
-  const sellerName = seller?.name || 'Community Member';
+  const sellerName = seller?.first_name || 'Community Member';
   const sellerNeighborhood = seller?.postcode_district
     ? formatLocation(seller.postcode_district)
-    : (seller?.neighborhood || seller?.city || '');
+    : '';
   const sellerAvatar = seller?.avatar_url || '';
   const catStyle = getCategoryStyle(listing.category);
   const CategoryIcon = CATEGORY_ICONS[listing.category] ?? ShoppingBag;
