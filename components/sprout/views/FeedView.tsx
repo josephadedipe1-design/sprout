@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, MapPin, Leaf, Copy, Check as CheckIcon, ShoppingBag, Tag, Car, Moon, Gamepad2, Package, Utensils, Home, BookOpen, Box, Trash2 } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, MapPin, Leaf, Copy, Check as CheckIcon, ShoppingBag, Tag, Car, Moon, Gamepad2, Package, Utensils, Home, BookOpen, Box, Trash2, Loader2, Send } from 'lucide-react';
 // Share2 kept for the first-in-area invite card only
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
@@ -37,11 +37,23 @@ interface FeedListing {
   status: string;
   offers_welcome: boolean;
   created_at: string;
+  seller_first_name: string;
+  seller_avatar: string;
+  seller_postcode_district: string;
+  image_url: string;
 }
 
 type FeedItem =
   | { kind: 'post'; data: Post }
   | { kind: 'listing'; data: FeedListing };
+
+interface ReplyItem {
+  id: string;
+  body: string;
+  created_at: string;
+  author_first_name: string;
+  author_avatar: string;
+}
 
 const TYPE_COLORS: Record<string, { bg: string; text: string; label: string }> = {
   question: { bg: '#FFF5EF', text: '#7D3C1A', label: 'Question' },
@@ -177,6 +189,11 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
   const [areaName, setAreaName] = useState('');
   const [copied, setCopied] = useState(false);
   const [menuPostId, setMenuPostId] = useState<string | null>(null);
+  const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
+  const [repliesMap, setRepliesMap] = useState<Record<string, ReplyItem[]>>({});
+  const [repliesLoadingMap, setRepliesLoadingMap] = useState<Record<string, boolean>>({});
+  const [replyTextMap, setReplyTextMap] = useState<Record<string, string>>({});
+  const [replySubmittingMap, setReplySubmittingMap] = useState<Record<string, boolean>>({});
 
   const isNewUser = !!(
     profile?.created_at &&
@@ -288,6 +305,27 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
 
     const { data: listingsData } = await listingsQuery;
     if (listingsData) {
+      const sellerIds = Array.from(new Set((listingsData as DbListing[]).map(l => l.seller_id).filter(Boolean)));
+      const sellerProfileMap: Record<string, { first_name: string; avatar_url: string; postcode_district: string }> = {};
+      if (sellerIds.length > 0) {
+        const { data: sellerRows } = await supabase
+          .from('profiles')
+          .select('id, first_name, avatar_url, postcode_district')
+          .in('id', sellerIds);
+        (sellerRows ?? []).forEach((p: any) => { sellerProfileMap[p.id] = p; });
+      }
+      const listingIds = (listingsData as DbListing[]).map(l => l.id);
+      const imageMap: Record<string, string> = {};
+      if (listingIds.length > 0) {
+        const { data: imageRows } = await supabase
+          .from('listing_images')
+          .select('listing_id, url, position')
+          .in('listing_id', listingIds)
+          .order('position', { ascending: true });
+        (imageRows ?? []).forEach((img: any) => {
+          if (!imageMap[img.listing_id]) imageMap[img.listing_id] = img.url;
+        });
+      }
       setFeedListings((listingsData as DbListing[]).map(l => ({
         id: l.id,
         title: l.title,
@@ -299,6 +337,10 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
         status: l.status,
         offers_welcome: l.offers_welcome,
         created_at: l.created_at,
+        seller_first_name: sellerProfileMap[l.seller_id]?.first_name || 'Community Member',
+        seller_avatar: sellerProfileMap[l.seller_id]?.avatar_url || '',
+        seller_postcode_district: sellerProfileMap[l.seller_id]?.postcode_district || l.postcode_district,
+        image_url: imageMap[l.id] || '',
       })));
     }
 
@@ -334,6 +376,59 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
     await supabase.from('posts').delete().eq('id', postId);
     setDbPosts(prev => prev.filter(p => p.id !== postId));
     setMenuPostId(null);
+  }
+
+  async function toggleReplies(postId: string) {
+    if (expandedPostId === postId) {
+      setExpandedPostId(null);
+      return;
+    }
+    setExpandedPostId(postId);
+    if (repliesMap[postId]) return;
+    setRepliesLoadingMap(prev => ({ ...prev, [postId]: true }));
+    const { data: replyRows } = await supabase
+      .from('replies')
+      .select('id, body, created_at, author_id')
+      .eq('post_id', postId)
+      .order('created_at', { ascending: true });
+    const authorIds = Array.from(new Set((replyRows ?? []).map((r: any) => r.author_id)));
+    const profileMap: Record<string, { first_name: string; avatar_url: string }> = {};
+    if (authorIds.length > 0) {
+      const { data: profileRows } = await supabase
+        .from('profiles')
+        .select('id, first_name, avatar_url')
+        .in('id', authorIds);
+      (profileRows ?? []).forEach((p: any) => { profileMap[p.id] = p; });
+    }
+    const items: ReplyItem[] = (replyRows ?? []).map((r: any) => ({
+      id: r.id,
+      body: r.body,
+      created_at: r.created_at,
+      author_first_name: profileMap[r.author_id]?.first_name || 'Community Member',
+      author_avatar: profileMap[r.author_id]?.avatar_url || '',
+    }));
+    setRepliesMap(prev => ({ ...prev, [postId]: items }));
+    setRepliesLoadingMap(prev => ({ ...prev, [postId]: false }));
+  }
+
+  async function submitInlineReply(postId: string) {
+    const text = (replyTextMap[postId] || '').trim();
+    if (!text || !user || replySubmittingMap[postId]) return;
+    setReplySubmittingMap(prev => ({ ...prev, [postId]: true }));
+    const { error } = await supabase.from('replies').insert({ post_id: postId, author_id: user.id, body: text });
+    if (!error) {
+      const newReply: ReplyItem = {
+        id: crypto.randomUUID(),
+        body: text,
+        created_at: new Date().toISOString(),
+        author_first_name: profile?.first_name || 'You',
+        author_avatar: profile?.avatar_url || '',
+      };
+      setRepliesMap(prev => ({ ...prev, [postId]: [...(prev[postId] ?? []), newReply] }));
+      setReplyTextMap(prev => ({ ...prev, [postId]: '' }));
+      setDbPosts(prev => prev.map(p => p.id === postId ? { ...p, comments: p.comments + 1 } : p));
+    }
+    setReplySubmittingMap(prev => ({ ...prev, [postId]: false }));
   }
 
   useEffect(() => {
@@ -521,40 +616,50 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
               return (
                 <article
                   key={`listing-${listing.id}`}
-                  className="card-sprout overflow-hidden cursor-pointer hover:shadow-md transition-shadow flex"
+                  className="card-sprout overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
                   onClick={() => onOpenListing(listing.id)}
                 >
-                  <div className="relative flex-shrink-0 w-28 sm:w-36" style={{ minHeight: 96 }}>
-                    <div className="w-full h-full flex flex-col items-center justify-center gap-1" style={{ minHeight: 96, background: catStyle.bg }}>
-                      <CategoryIcon className="w-8 h-8" style={{ color: catStyle.color, opacity: 0.8 }} />
-                      <span className="text-xs font-medium" style={{ color: catStyle.color }}>{listing.category}</span>
-                    </div>
-                    {isSold && (
-                      <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.35)' }}>
-                        <span className="text-xs font-bold text-white px-2 py-0.5 rounded-full" style={{ background: '#374151' }}>Sold</span>
+                  {/* Seller header */}
+                  <div className="flex items-center gap-2.5 p-4 pb-3">
+                    {listing.seller_avatar ? (
+                      <img src={listing.seller_avatar} alt={listing.seller_first_name} className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
+                    ) : (
+                      <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0" style={{ background: 'var(--brand)' }}>
+                        {listing.seller_first_name.charAt(0)}
                       </div>
                     )}
-                  </div>
-                  <div className="flex-1 p-3 flex flex-col justify-between min-w-0">
-                    <div>
-                      <div className="flex items-start justify-between gap-2 mb-1">
-                        <p className="text-sm font-semibold leading-tight" style={{ color: isSold ? '#9a8070' : '#2a1f18' }}>{listing.title}</p>
-                        <span className="tag-sprout flex-shrink-0" style={{ background: '#FFF7ED', color: '#D97706' }}>Market</span>
-                      </div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: '#f4f3f0', color: '#5a4035' }}>{listing.condition}</span>
-                        <span className="text-xs" style={{ color: '#9a8070' }}>{listing.category}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold" style={{ color: '#2a1f18' }}>{listing.seller_first_name}</p>
+                      <div className="flex items-center gap-1 text-xs" style={{ color: '#9a8070' }}>
+                        {listing.seller_postcode_district && <><MapPin className="w-3 h-3" />{formatLocation(listing.seller_postcode_district)} · </>}
+                        {formatRelativeTime(listing.created_at)}
                       </div>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-base font-bold" style={{ color: isSold ? '#9a8070' : (priceInPounds === 0 ? '#16a34a' : 'var(--brand)') }}>
+                    <span className="tag-sprout flex-shrink-0" style={{ background: '#FFF7ED', color: '#D97706' }}>Market</span>
+                  </div>
+
+                  {/* Listing image or icon */}
+                  {listing.image_url ? (
+                    <img src={listing.image_url} alt={listing.title} className={`w-full h-48 object-cover ${isSold ? 'opacity-60' : ''}`} />
+                  ) : (
+                    <div className="w-full h-32 flex flex-col items-center justify-center gap-2" style={{ background: catStyle.bg, opacity: isSold ? 0.6 : 1 }}>
+                      <CategoryIcon className="w-10 h-10" style={{ color: catStyle.color, opacity: 0.8 }} />
+                      <span className="text-xs font-medium" style={{ color: catStyle.color }}>{listing.category}</span>
+                    </div>
+                  )}
+
+                  {/* Listing details */}
+                  <div className="p-4 pt-3">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <p className="text-sm font-semibold leading-tight" style={{ color: isSold ? '#9a8070' : '#2a1f18' }}>{listing.title}</p>
+                      <span className="text-base font-bold flex-shrink-0" style={{ color: isSold ? '#9a8070' : (priceInPounds === 0 ? '#16a34a' : 'var(--brand)') }}>
                         {priceInPounds === 0 ? 'Free' : `£${priceInPounds.toFixed(2)}`}
                       </span>
-                      <div className="flex items-center gap-1 text-xs" style={{ color: '#9a8070' }}>
-                        <MapPin className="w-3 h-3 flex-shrink-0" />
-                        <span className="truncate max-w-[120px]">{formatLocation(listing.postcode_district)}</span>
-                        <span>· {formatRelativeTime(listing.created_at)}</span>
-                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: '#f4f3f0', color: '#5a4035' }}>{listing.condition}</span>
+                      <span className="text-xs" style={{ color: '#9a8070' }}>{listing.category}</span>
+                      {isSold && <span className="text-xs font-bold px-2 py-0.5 rounded-full ml-auto" style={{ background: '#374151', color: 'white' }}>Sold</span>}
                     </div>
                   </div>
                 </article>
@@ -571,8 +676,8 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
             const timeAgo = formatRelativeTime(post.created_at);
 
             return (
-              <article key={`post-${post.id}`} className="card-sprout overflow-hidden cursor-pointer hover:shadow-md transition-shadow" onClick={() => onOpenThread(post.id)}>
-                <div className="p-4">
+              <article key={`post-${post.id}`} className="card-sprout overflow-hidden">
+                <div className="p-4 cursor-pointer hover:bg-orange-50/30 transition-colors" onClick={() => toggleReplies(post.id)}>
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2.5">
                       {post.is_anonymous || !authorAvatar ? (
@@ -630,7 +735,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
                   <p className="text-sm leading-relaxed mb-3" style={{ color: '#3a2820', lineHeight: 1.6 }}>{post.body}</p>
                 </div>
 
-                <div className="flex items-center border-t px-4 py-2.5" style={{ borderColor: 'var(--border-color)' }} onClick={e => e.stopPropagation()}>
+                <div className="flex items-center border-t px-4 py-2.5" style={{ borderColor: 'var(--border-color)' }}>
                   <button
                     onClick={() => toggleLike(post)}
                     className="flex items-center gap-1.5 text-sm mr-5 transition-colors"
@@ -640,9 +745,9 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
                     {post.likes}
                   </button>
                   <button
-                    onClick={() => onOpenThread(post.id)}
-                    className="flex items-center gap-1.5 text-sm mr-5"
-                    style={{ color: '#9a8070' }}
+                    onClick={() => toggleReplies(post.id)}
+                    className="flex items-center gap-1.5 text-sm mr-5 transition-colors"
+                    style={{ color: expandedPostId === post.id ? 'var(--brand)' : '#9a8070' }}
                   >
                     <MessageCircle className="w-4 h-4" />
                     {post.comments}
@@ -651,6 +756,70 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
                     <Bookmark className="w-4 h-4" fill={post.saved ? 'var(--brand)' : 'none'} />
                   </button>
                 </div>
+
+                {expandedPostId === post.id && (
+                  <div className="border-t px-4 py-3" style={{ borderColor: 'var(--border-color)', background: '#faf9f7' }}>
+                    {repliesLoadingMap[post.id] ? (
+                      <div className="flex justify-center py-4">
+                        <Loader2 className="w-5 h-5 animate-spin" style={{ color: 'var(--brand)' }} />
+                      </div>
+                    ) : (
+                      <>
+                        {(repliesMap[post.id] ?? []).length === 0 ? (
+                          <p className="text-xs text-center py-2" style={{ color: '#9a8070' }}>No replies yet. Be the first!</p>
+                        ) : (
+                          <div className="space-y-3 mb-3">
+                            {(repliesMap[post.id] ?? []).map(r => (
+                              <div key={r.id} className="flex gap-2">
+                                {r.author_avatar ? (
+                                  <img src={r.author_avatar} alt={r.author_first_name} className="w-7 h-7 rounded-full object-cover flex-shrink-0 mt-0.5" />
+                                ) : (
+                                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0 mt-0.5" style={{ background: 'var(--brand)' }}>
+                                    {r.author_first_name.charAt(0)}
+                                  </div>
+                                )}
+                                <div className="flex-1 rounded-xl px-3 py-2" style={{ background: 'white', border: '1px solid var(--border-color)' }}>
+                                  <div className="flex items-center justify-between mb-0.5">
+                                    <span className="text-xs font-semibold" style={{ color: '#2a1f18' }}>{r.author_first_name}</span>
+                                    <span className="text-xs" style={{ color: '#c4a090' }}>{formatRelativeTime(r.created_at)}</span>
+                                  </div>
+                                  <p className="text-sm leading-relaxed" style={{ color: '#3a2820' }}>{r.body}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2">
+                          {profile?.avatar_url ? (
+                            <img src={profile.avatar_url} alt="Me" className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
+                          ) : (
+                            <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0" style={{ background: 'var(--brand)' }}>
+                              {(profile?.first_name ?? 'Y').charAt(0)}
+                            </div>
+                          )}
+                          <input
+                            className="input-sprout flex-1 text-sm py-2"
+                            placeholder="Add a reply…"
+                            value={replyTextMap[post.id] ?? ''}
+                            onChange={e => setReplyTextMap(prev => ({ ...prev, [post.id]: e.target.value }))}
+                            onKeyDown={e => e.key === 'Enter' && !e.shiftKey && submitInlineReply(post.id)}
+                          />
+                          <button
+                            onClick={() => submitInlineReply(post.id)}
+                            disabled={!(replyTextMap[post.id] ?? '').trim() || replySubmittingMap[post.id]}
+                            className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-opacity"
+                            style={{ background: 'var(--brand)', opacity: (replyTextMap[post.id] ?? '').trim() && !replySubmittingMap[post.id] ? 1 : 0.4 }}
+                          >
+                            {replySubmittingMap[post.id]
+                              ? <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
+                              : <Send className="w-3.5 h-3.5 text-white" />
+                            }
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
               </article>
             );
           })}
