@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { AGE_LABEL_TO_MONTHS } from '@/lib/profiles';
+import { sendNotificationEmail } from '@/lib/notifications';
 
 // Steps 1–7 are data-collection; step 8 is the confirmation screen.
 const TOTAL_STEPS = 8;
@@ -280,6 +281,12 @@ export default function SignupPage() {
       }
 
       setStep(8);
+
+      sendNotificationEmail({
+        type: 'welcome',
+        recipientUserId: uid,
+        emailData: { recipientName: firstName },
+      });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Something went wrong. Please try again.';
       setSubmitError(msg);

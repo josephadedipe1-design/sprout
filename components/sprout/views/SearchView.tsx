@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Search, ArrowLeft, MapPin, Clock, TrendingUp, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { DbProfile } from '@/lib/types';
-import { formatLocation } from '@/lib/utils';
+import { formatLocation, formatName } from '@/lib/utils';
 
 const TRENDING = ['Pediatric dentist', 'Sleep regression', 'Playgroup', 'Baby carrier', 'First foods'];
 
@@ -202,7 +202,7 @@ export default function SearchView({ onBack }: SearchViewProps) {
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold truncate" style={{ color: '#2a1f18' }}>{p.first_name}</p>
+                      <p className="text-sm font-semibold truncate" style={{ color: '#2a1f18' }}>{formatName(p.first_name, p.last_initial)}</p>
                       {p.postcode_district && (
                         <p className="text-xs flex items-center gap-1" style={{ color: '#9a8070' }}>
                           <MapPin className="w-3 h-3" />{formatLocation(p.postcode_district)}
@@ -223,7 +223,7 @@ export default function SearchView({ onBack }: SearchViewProps) {
                   <div key={p.id} className="card-sprout p-4">
                     <p className="text-sm mb-2 leading-relaxed" style={{ color: '#2a1f18', lineHeight: 1.5 }}>{p.body}</p>
                     <p className="text-xs" style={{ color: '#9a8070' }}>
-                      {p.profile?.first_name ?? 'Community Member'} · {formatRelativeTime(p.created_at)}
+                      {formatName(p.profile?.first_name ?? '', p.profile?.last_initial) || 'Community Member'} · {formatRelativeTime(p.created_at)}
                     </p>
                   </div>
                 ))}

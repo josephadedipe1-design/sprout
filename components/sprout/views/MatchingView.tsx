@@ -6,9 +6,10 @@ import type { Profile } from '@/lib/profiles';
 import { enrichProfilesWithChildren } from '@/lib/profiles';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
+import { sendNotificationEmail } from '@/lib/notifications';
 import type { DbProfile, DbConnection } from '@/lib/types';
 import UKMap from '@/components/sprout/UKMap';
-import { formatLocation } from '@/lib/utils';
+import { formatLocation, formatName } from '@/lib/utils';
 
 type Tab = 'discover' | 'connections' | 'requests' | 'map';
 
@@ -218,6 +219,18 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
       .select('id')
       .single();
 
+    const requesterName = myProfile?.first_name
+      ? (myProfile.last_initial ? `${myProfile.first_name} ${myProfile.last_initial}.` : myProfile.first_name)
+      : 'A parent';
+    sendNotificationEmail({
+      type: 'match_request',
+      recipientUserId: current.id,
+      emailData: {
+        actorUserId: user.id,
+        requesterName,
+      },
+    });
+
     // Immediately reflect the sent request so the Requests tab updates without a refresh
     setSentRequests(prev => [...prev, {
       id: newReq?.id ?? `temp-${Date.now()}`,
@@ -236,7 +249,7 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
   function dbProfileToProfile(p: DbProfile): Profile {
     return {
       id: parseInt(p.id.replace(/-/g, '').slice(0, 8), 16),
-      name: p.first_name,
+      name: formatName(p.first_name, p.last_initial) || p.first_name,
       age: 30,
       neighborhood: '',
       postcode_district: p.postcode_district,
@@ -322,7 +335,7 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold mb-0.5" style={{ color: '#2a1f18' }}>{rc.profile.first_name}</p>
+                  <p className="text-sm font-semibold mb-0.5" style={{ color: '#2a1f18' }}>{formatName(rc.profile.first_name, rc.profile.last_initial)}</p>
                   <div className="flex items-center gap-1 text-xs" style={{ color: '#9a8070' }}>
                     <MapPin className="w-3 h-3" />{formatLocation(rc.profile.postcode_district || '') || 'Nearby'}
                   </div>
@@ -369,7 +382,7 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold" style={{ color: '#2a1f18' }}>{rr.profile.first_name}</p>
+                        <p className="text-sm font-semibold" style={{ color: '#2a1f18' }}>{formatName(rr.profile.first_name, rr.profile.last_initial)}</p>
                         <div className="flex items-center gap-1 text-xs mb-1" style={{ color: '#9a8070' }}>
                           <MapPin className="w-3 h-3" />{formatLocation(rr.profile.postcode_district || '') || 'Nearby'}
                         </div>
@@ -424,7 +437,7 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold" style={{ color: '#2a1f18' }}>{sr.profile.first_name}</p>
+                      <p className="text-sm font-semibold" style={{ color: '#2a1f18' }}>{formatName(sr.profile.first_name, sr.profile.last_initial)}</p>
                       <div className="flex items-center gap-1 text-xs" style={{ color: '#9a8070' }}>
                         <MapPin className="w-3 h-3" />{formatLocation(sr.profile.postcode_district || '') || 'Nearby'}
                       </div>
@@ -535,7 +548,7 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
-                        <h2 className="text-lg font-bold leading-tight" style={{ color: '#2a1f18' }}>{current.first_name}</h2>
+                        <h2 className="text-lg font-bold leading-tight" style={{ color: '#2a1f18' }}>{formatName(current.first_name, current.last_initial)}</h2>
                         {current.parent_type && (
                           <span className="text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0" style={{
                             background: current.parent_type === 'expecting' ? '#EFF4FF' : 'var(--brand-light)',

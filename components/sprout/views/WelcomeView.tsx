@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import type { DbProfile } from '@/lib/types';
 import { enrichProfilesWithChildren } from '@/lib/profiles';
-import { formatLocation } from '@/lib/utils';
+import { formatLocation, formatName } from '@/lib/utils';
 
 interface WelcomeViewProps {
   onDone: () => void;
@@ -160,7 +160,7 @@ export default function WelcomeView({ onDone, onGoToMatching }: WelcomeViewProps
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold" style={{ color: '#2a1f18' }}>{p.first_name}</p>
+                      <p className="text-sm font-semibold" style={{ color: '#2a1f18' }}>{formatName(p.first_name, p.last_initial)}</p>
                       <div className="flex items-center gap-1 text-xs" style={{ color: '#9a8070' }}>
                         <MapPin className="w-2.5 h-2.5" />
                         {formatLocation(p.postcode_district || '') || 'Nearby'}

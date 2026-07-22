@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Heart, MessageCircle, UserPlus, Bell, MapPin } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
+import { formatName } from '@/lib/utils';
 
 interface RealNotification {
   id: string;
@@ -102,11 +103,11 @@ export default function NotificationsView({ onGoToFeed, onGoToMatching, onGoToMe
     (connRaw ?? []).forEach((r: any) => actorIds.add(r.from_user_id));
 
     // Batch-fetch all actor profiles
-    const profileMap: Record<string, { first_name: string; avatar_url: string }> = {};
+    const profileMap: Record<string, { first_name: string; last_initial: string; avatar_url: string }> = {};
     if (actorIds.size > 0) {
       const { data: profileRows } = await supabase
         .from('profiles')
-        .select('id, first_name, avatar_url')
+        .select('id, first_name, last_initial, avatar_url')
         .in('id', Array.from(actorIds));
       (profileRows ?? []).forEach((p: any) => { profileMap[p.id] = p; });
     }
@@ -116,7 +117,7 @@ export default function NotificationsView({ onGoToFeed, onGoToMatching, onGoToMe
       all.push({
         id: `like-${r.user_id}-${r.created_at}`,
         type: 'like',
-        actorName: actor?.first_name || 'Someone',
+        actorName: formatName(actor?.first_name || '', actor?.last_initial) || 'Someone',
         actorAvatar: actor?.avatar_url || '',
         text: `liked your post "${truncate(postContentMap[r.post_id] || '')}"`,
         time: formatRelativeTime(r.created_at),
@@ -131,7 +132,7 @@ export default function NotificationsView({ onGoToFeed, onGoToMatching, onGoToMe
       all.push({
         id: `reply-${r.id}`,
         type: 'comment',
-        actorName: actor?.first_name || 'Someone',
+        actorName: formatName(actor?.first_name || '', actor?.last_initial) || 'Someone',
         actorAvatar: actor?.avatar_url || '',
         text: `replied to your post: "${truncate(r.body || '')}"`,
         time: formatRelativeTime(r.created_at),
@@ -146,7 +147,7 @@ export default function NotificationsView({ onGoToFeed, onGoToMatching, onGoToMe
       all.push({
         id: `connect-${r.id}`,
         type: 'connect',
-        actorName: actor?.first_name || 'Someone',
+        actorName: formatName(actor?.first_name || '', actor?.last_initial) || 'Someone',
         actorAvatar: actor?.avatar_url || '',
         text: 'wants to connect with you',
         time: formatRelativeTime(r.created_at),

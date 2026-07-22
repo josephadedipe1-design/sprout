@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import type { DbProfile } from '@/lib/types';
+import { formatName } from '@/lib/utils';
 
 // Fix leaflet's default icon paths broken by webpack
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -80,7 +81,7 @@ export default function UKMapInner({ profiles, center, zoom = 11, currentUserId,
                   </div>
                 )}
                 <div>
-                  <p style={{ fontWeight: 700, fontSize: 13, margin: 0, color: '#2a1f18' }}>{p.id === currentUserId ? 'You' : p.first_name}</p>
+                  <p style={{ fontWeight: 700, fontSize: 13, margin: 0, color: '#2a1f18' }}>{p.id === currentUserId ? 'You' : formatName(p.first_name, p.last_initial)}</p>
                   {p.postcode_district && <p style={{ fontSize: 11, color: '#9a8070', margin: 0 }}>{p.postcode_district}</p>}
                 </div>
               </div>

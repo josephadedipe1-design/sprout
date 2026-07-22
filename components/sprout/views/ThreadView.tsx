@@ -4,8 +4,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { ArrowLeft, Heart, Send, MoreHorizontal, MapPin, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
+import { sendNotificationEmail, truncatePreview } from '@/lib/notifications';
 import type { DbProfile } from '@/lib/types';
-import { formatLocation } from '@/lib/utils';
+import { formatLocation, formatName } from '@/lib/utils';
 
 interface Post {
   id: string;
@@ -115,6 +116,21 @@ export default function ThreadView({ postId, onBack }: ThreadViewProps) {
     } else {
       await supabase.from('likes').insert({ post_id: postId, user_id: user.id });
       setPost(p => p ? { ...p, liked: true, likes: p.likes + 1 } : p);
+
+      if (post?.profile?.id && post.profile.id !== user.id) {
+        const likerName = profile?.first_name
+          ? (profile.last_initial ? `${profile.first_name} ${profile.last_initial}.` : profile.first_name)
+          : 'Someone';
+        sendNotificationEmail({
+          type: 'like',
+          recipientUserId: post.profile.id,
+          emailData: {
+            actorUserId: user.id,
+            likerName,
+            postPreview: truncatePreview(post.body),
+          },
+        });
+      }
     }
   }
 
@@ -129,6 +145,21 @@ export default function ThreadView({ postId, onBack }: ThreadViewProps) {
     if (error) {
       setSubmitError('Failed to post reply. Please try again.');
     } else {
+      if (post?.profile?.id && post.profile.id !== user.id) {
+        const replierName = profile?.first_name
+          ? (profile.last_initial ? `${profile.first_name} ${profile.last_initial}.` : profile.first_name)
+          : 'Someone';
+        sendNotificationEmail({
+          type: 'reply',
+          recipientUserId: post.profile.id,
+          emailData: {
+            actorUserId: user.id,
+            replierName,
+            replyPreview: truncatePreview(body),
+            postPreview: truncatePreview(post.body),
+          },
+        });
+      }
       setReplies(prev => [...prev, {
         id: crypto.randomUUID(),
         body,
@@ -141,7 +172,7 @@ export default function ThreadView({ postId, onBack }: ThreadViewProps) {
     setSubmitting(false);
   }
 
-  const authorName = post ? (post.is_anonymous ? 'Anonymous Parent' : post.profile?.first_name ?? 'Community Member') : '';
+  const authorName = post ? (post.is_anonymous ? 'Anonymous Parent' : formatName(post.profile?.first_name ?? '', post.profile?.last_initial) || 'Community Member') : '';
   const authorAvatar = post && !post.is_anonymous ? post.profile?.avatar_url ?? '' : '';
 
   return (
@@ -215,7 +246,7 @@ export default function ThreadView({ postId, onBack }: ThreadViewProps) {
             ) : (
               <div className="space-y-3">
                 {replies.map((r) => {
-                  const name = r.profile?.first_name ?? 'Community Member';
+                  const name = formatName(r.profile?.first_name ?? '', r.profile?.last_initial) || 'Community Member';
                   const avatar = r.profile?.avatar_url ?? '';
                   return (
                     <div key={r.id} className="flex gap-2.5">

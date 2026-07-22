@@ -4,10 +4,10 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Search, MoreHorizontal, ArrowLeft, Edit2, X, Users, ShoppingBag, Car, Moon, Tag, Gamepad2, Package, Utensils, Home, BookOpen, Box } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
+import { sendNotificationEmail, truncatePreview } from '@/lib/notifications';
 import type { DbMessage, DbProfile } from '@/lib/types';
 import type { ListingSnap } from './ListingDetailView';
-import { formatLocation } from '@/lib/utils';
-import { getCategoryStyle } from '@/lib/utils';
+import { formatLocation, formatName, getCategoryStyle } from '@/lib/utils';
 
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
   Travel: Car, Sleep: Moon, Clothing: Tag, Toys: Gamepad2,
@@ -104,7 +104,7 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
   messageListing?: ListingSnap | null;
   onActiveChatChange?: (active: boolean) => void;
 }) {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [conversations, setConversations] = useState<ConvDisplay[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<MsgDisplay[]>([]);
@@ -170,7 +170,7 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
       const other = profileMap[otherId];
       return {
         id: c.id,
-        name: other?.first_name || 'Unknown',
+        name: formatName(other?.first_name || '', other?.last_initial) || 'Unknown',
         avatar: other?.avatar_url || '',
         lastMsg: c.last_message || 'No messages yet',
         time: c.last_message_at ? formatTime(c.last_message_at) : '',
@@ -329,6 +329,22 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
     markRead(activeId);
 
     await loadConversations();
+
+    const conv = conversations.find(c => c.id === activeId);
+    if (conv) {
+      const senderName = profile?.first_name
+        ? (profile.last_initial ? `${profile.first_name} ${profile.last_initial}.` : profile.first_name)
+        : 'Someone';
+      sendNotificationEmail({
+        type: 'message',
+        recipientUserId: conv.otherUserId,
+        emailData: {
+          actorUserId: user.id,
+          senderName,
+          preview: truncatePreview(text),
+        },
+      });
+    }
   }
 
   // Realtime subscription for incoming messages
@@ -621,7 +637,7 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold" style={{ color: '#2a1f18' }}>{p.first_name}</p>
+                        <p className="text-sm font-semibold" style={{ color: '#2a1f18' }}>{formatName(p.first_name, p.last_initial)}</p>
                         <p className="text-xs" style={{ color: '#9a8070' }}>{p.postcode_district ? formatLocation(p.postcode_district) : 'Nearby'}</p>
                       </div>
                     </button>

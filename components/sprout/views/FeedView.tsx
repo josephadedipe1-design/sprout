@@ -5,8 +5,9 @@ import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, MapPin, Leaf, C
 // Share2 kept for the first-in-area invite card only
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
+import { sendNotificationEmail, truncatePreview } from '@/lib/notifications';
 import type { DbProfile, DbListing } from '@/lib/types';
-import { getCategoryStyle, formatLocation } from '@/lib/utils';
+import { getCategoryStyle, formatLocation, formatName } from '@/lib/utils';
 
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
   Travel: Car, Sleep: Moon, Clothing: Tag, Toys: Gamepad2,
@@ -38,6 +39,7 @@ interface FeedListing {
   offers_welcome: boolean;
   created_at: string;
   seller_first_name: string;
+  seller_last_initial: string;
   seller_avatar: string;
   seller_postcode_district: string;
   image_url: string;
@@ -306,11 +308,11 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
     const { data: listingsData } = await listingsQuery;
     if (listingsData) {
       const sellerIds = Array.from(new Set((listingsData as DbListing[]).map(l => l.seller_id).filter(Boolean)));
-      const sellerProfileMap: Record<string, { first_name: string; avatar_url: string; postcode_district: string }> = {};
+      const sellerProfileMap: Record<string, { first_name: string; last_initial: string; avatar_url: string; postcode_district: string }> = {};
       if (sellerIds.length > 0) {
         const { data: sellerRows } = await supabase
           .from('profiles')
-          .select('id, first_name, avatar_url, postcode_district')
+          .select('id, first_name, last_initial, avatar_url, postcode_district')
           .in('id', sellerIds);
         (sellerRows ?? []).forEach((p: any) => { sellerProfileMap[p.id] = p; });
       }
@@ -338,6 +340,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
         offers_welcome: l.offers_welcome,
         created_at: l.created_at,
         seller_first_name: sellerProfileMap[l.seller_id]?.first_name || 'Community Member',
+        seller_last_initial: sellerProfileMap[l.seller_id]?.last_initial || '',
         seller_avatar: sellerProfileMap[l.seller_id]?.avatar_url || '',
         seller_postcode_district: sellerProfileMap[l.seller_id]?.postcode_district || l.postcode_district,
         image_url: imageMap[l.id] || '',
@@ -355,6 +358,21 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
       await supabase.from('likes').delete().eq('post_id', post.id).eq('user_id', user.id);
     } else {
       await supabase.from('likes').insert({ post_id: post.id, user_id: user.id });
+
+      if (post.author_id && post.author_id !== user.id) {
+        const likerName = profile?.first_name
+          ? (profile.last_initial ? `${profile.first_name} ${profile.last_initial}.` : profile.first_name)
+          : 'Someone';
+        sendNotificationEmail({
+          type: 'like',
+          recipientUserId: post.author_id,
+          emailData: {
+            actorUserId: user.id,
+            likerName,
+            postPreview: truncatePreview(post.body),
+          },
+        });
+      }
     }
     setDbPosts(prev => prev.map(p =>
       p.id === post.id ? { ...p, liked: !p.liked, likes: p.liked ? p.likes - 1 : p.likes + 1 } : p
@@ -417,6 +435,22 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
     setReplySubmittingMap(prev => ({ ...prev, [postId]: true }));
     const { error } = await supabase.from('replies').insert({ post_id: postId, author_id: user.id, body: text });
     if (!error) {
+      const post = dbPosts.find(p => p.id === postId);
+      if (post?.author_id && post.author_id !== user.id) {
+        const replierName = profile?.first_name
+          ? (profile.last_initial ? `${profile.first_name} ${profile.last_initial}.` : profile.first_name)
+          : 'Someone';
+        sendNotificationEmail({
+          type: 'reply',
+          recipientUserId: post.author_id,
+          emailData: {
+            actorUserId: user.id,
+            replierName,
+            replyPreview: truncatePreview(text),
+            postPreview: truncatePreview(post.body),
+          },
+        });
+      }
       const newReply: ReplyItem = {
         id: crypto.randomUUID(),
         body: text,
@@ -629,7 +663,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold" style={{ color: '#2a1f18' }}>{listing.seller_first_name}</p>
+                      <p className="text-sm font-semibold" style={{ color: '#2a1f18' }}>{formatName(listing.seller_first_name, listing.seller_last_initial)}</p>
                       <div className="flex items-center gap-1 text-xs" style={{ color: '#9a8070' }}>
                         {listing.seller_postcode_district && <><MapPin className="w-3 h-3" />{formatLocation(listing.seller_postcode_district)} · </>}
                         {formatRelativeTime(listing.created_at)}
@@ -668,7 +702,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
 
             const post = item.data;
             const typeInfo = TYPE_COLORS[post.post_type] ?? TYPE_COLORS.question;
-            const authorName = post.is_anonymous ? 'Anonymous Parent' : (post.profile?.first_name || 'Community Member');
+            const authorName = post.is_anonymous ? 'Anonymous Parent' : formatName(post.profile?.first_name || '', post.profile?.last_initial) || 'Community Member';
             const authorAvatar = post.is_anonymous ? '' : (post.profile?.avatar_url || '');
             const authorLocation = post.profile?.postcode_district
               ? formatLocation(post.profile.postcode_district)

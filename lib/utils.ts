@@ -73,6 +73,12 @@ export function formatLocation(postcode_district: string): string {
   return area ? `${area}, ${upper}` : upper;
 }
 
+/** Formats a display name as "FirstName L." when a last initial is available. */
+export function formatName(firstName: string, lastInitial?: string | null): string {
+  if (!firstName) return '';
+  return lastInitial ? `${firstName} ${lastInitial}.` : firstName;
+}
+
 export const CATEGORY_STYLES: Record<string, { bg: string; color: string }> = {
   Travel:        { bg: '#DBEAFE', color: '#1E40AF' },
   Sleep:         { bg: '#EDE9FE', color: '#6D28D9' },

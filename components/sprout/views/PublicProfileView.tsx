@@ -5,6 +5,7 @@ import { ArrowLeft, MapPin, Baby, Star, Heart, UserPlus, MessageCircle, X, Loade
 import { Profile } from '@/lib/profiles';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
+import { sendNotificationEmail } from '@/lib/notifications';
 import { formatLocation } from '@/lib/utils';
 
 interface PublicProfileViewProps {
@@ -17,7 +18,7 @@ interface PublicProfileViewProps {
 }
 
 export default function PublicProfileView({ profile, onBack, onConnect, onMessage, connected = false, pendingRequest = false }: PublicProfileViewProps) {
-  const { user } = useAuth();
+  const { user, profile: myProfile } = useAuth();
   const [hovered, setHovered] = useState<'accept' | 'decline' | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [connectError, setConnectError] = useState('');
@@ -37,6 +38,18 @@ export default function PublicProfileView({ profile, onBack, onConnect, onMessag
     }
     setConnecting(false);
     onConnect();
+
+    const requesterName = myProfile?.first_name
+      ? (myProfile.last_initial ? `${myProfile.first_name} ${myProfile.last_initial}.` : myProfile.first_name)
+      : 'A parent';
+    sendNotificationEmail({
+      type: 'match_request',
+      recipientUserId: profile.userId,
+      emailData: {
+        actorUserId: user.id,
+        requesterName,
+      },
+    });
   }
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 pb-24 lg:pb-6">
