@@ -14,6 +14,8 @@ export interface DbProfile {
   parent_type: string;
   postcode_district?: string;
   due_date: string | null;
+  lat: number | null;
+  lng: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -22,8 +24,6 @@ export interface DbProfile {
 export interface EnrichedDbProfile extends DbProfile {
   children_ages?: string[];
   interests?: string[];
-  lat?: number | null;
-  lng?: number | null;
 }
 
 /** Return type of enrichProfilesWithChildren — guarantees arrays are populated. */

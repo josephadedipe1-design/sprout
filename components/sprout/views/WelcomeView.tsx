@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { MapPin, Heart, ArrowRight, Users, Sparkles, Copy, Check as CheckIcon, Share2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
-import type { DbProfile } from '@/lib/types';
+import type { DbProfile, EnrichedDbProfile } from '@/lib/types';
 import { enrichProfilesWithChildren } from '@/lib/profiles';
 import { formatLocation, formatName } from '@/lib/utils';
 
@@ -15,7 +15,7 @@ interface WelcomeViewProps {
 
 export default function WelcomeView({ onDone, onGoToMatching }: WelcomeViewProps) {
   const { profile } = useAuth();
-  const [nearbyParents, setNearbyParents] = useState<DbProfile[]>([]);
+  const [nearbyParents, setNearbyParents] = useState<EnrichedDbProfile[]>([]);
   const [copied, setCopied] = useState(false);
 
   const loadNearby = useCallback(async () => {

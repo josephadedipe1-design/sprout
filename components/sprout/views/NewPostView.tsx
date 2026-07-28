@@ -7,7 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 
 const POST_TYPES = [
   { id: 'question', label: 'Question', desc: 'Ask the community for advice', color: '#7D3C1A', bg: '#FFF5EF' },
-  { id: 'support', label: 'Support', desc: 'Share anonymously, receive kindness', color: '#2563EB', bg: '#EFF4FF' },
+  { id: 'support', label: 'Support', desc: 'Share and receive kindness', color: '#2563EB', bg: '#EFF4FF' },
   { id: 'meetup', label: 'Meetup', desc: 'Organize a local playdate or event', color: '#059669', bg: '#ECFDF5' },
   { id: 'listing', label: 'List in Market', desc: 'Sell or give away items in the Marketplace', color: '#D97706', bg: '#FFF7ED' },
 ];
@@ -27,7 +27,6 @@ export default function NewPostView({ onBack, onPublish, onListInMarket }: NewPo
   const [postType, setPostType] = useState('');
   const [content, setContent] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [anonymous, setAnonymous] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState('');
 
@@ -44,7 +43,7 @@ export default function NewPostView({ onBack, onPublish, onListInMarket }: NewPo
       author_id: user.id,
       post_type: postType,
       body: content.trim(),
-      is_anonymous: anonymous,
+      is_anonymous: false,
       postcode_district: postcodeDistrict,
     });
 
@@ -110,19 +109,6 @@ export default function NewPostView({ onBack, onPublish, onListInMarket }: NewPo
             <span className="tag-sprout" style={{ background: selectedType.bg, color: selectedType.color }}>
               {selectedType.label}
             </span>
-            {postType === 'support' && (
-              <button
-                onClick={() => setAnonymous(!anonymous)}
-                className="tag-sprout transition-all"
-                style={{
-                  background: anonymous ? '#EFF4FF' : '#f4f3f0',
-                  color: anonymous ? '#2563EB' : '#9a8070',
-                  border: `1px solid ${anonymous ? '#bfdbfe' : '#e0dbd4'}`,
-                }}
-              >
-                {anonymous ? '✓ Anonymous' : 'Post anonymously'}
-              </button>
-            )}
           </div>
 
           <div>

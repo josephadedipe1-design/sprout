@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Camera, Loader2, MapPin } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
+import { fetchUserInterests } from '@/lib/profiles';
 
 interface EditProfileViewProps {
   onBack: () => void;
@@ -35,8 +36,6 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
   const [form, setForm] = useState({
     name: '',
     bio: '',
-    neighborhood: '',
-    city: '',
     postcode: '',
     interests: [] as string[],
   });
@@ -48,16 +47,19 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
         ? `${profile.first_name}${profile.last_initial ? ' ' + profile.last_initial : ''}`
         : '';
       setForm({
-        name: (profile as any).name || fallbackName,
+        name: fallbackName,
         bio: profile.bio,
-        neighborhood: (profile as any).neighborhood || '',
-        city: (profile as any).city || '',
         postcode: profile.postcode_district ?? '',
-        interests: profile.interests ?? [],
+        interests: [],
       });
       setAvatarUrl(profile.avatar_url || '');
+      if (user) {
+        fetchUserInterests(user.id).then(interests => {
+          setForm(f => ({ ...f, interests }));
+        });
+      }
     }
-  }, [profile]);
+  }, [profile, user]);
 
   function toggleInterest(i: string) {
     setForm((f) => ({
@@ -100,11 +102,6 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
     setSaving(true);
     setError('');
 
-    let lat: number | null | undefined = undefined;
-    let lng: number | null | undefined = undefined;
-    let neighborhood = form.neighborhood;
-    let city = form.city;
-
     const postcodeTrimmed = form.postcode.trim();
     const postcodeChanged = postcodeTrimmed && postcodeTrimmed !== (profile?.postcode_district ?? '');
     if (postcodeChanged) {
@@ -113,10 +110,6 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
         const res = await fetch(`https://api.postcodes.io/postcodes/${encodeURIComponent(postcodeTrimmed)}`);
         const data = await res.json();
         if (data.status === 200 && data.result) {
-          lat = data.result.latitude;
-          lng = data.result.longitude;
-          if (!neighborhood) neighborhood = data.result.admin_ward || data.result.parliamentary_constituency || '';
-          if (!city) city = data.result.admin_district || data.result.region || '';
           setGeocodeStatus('ok');
         } else {
           setGeocodeStatus('error');
@@ -132,29 +125,39 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
     const lastInitial = nameParts.length > 1 ? nameParts[nameParts.length - 1][0].toUpperCase() : '';
     const finalPostcode = postcodeTrimmed || profile?.postcode_district || '';
 
-    const update: Record<string, unknown> = {
+    const update = {
       id: user.id,
-      name: form.name,
       first_name: firstName,
       last_initial: lastInitial,
       bio: form.bio.slice(0, BIO_MAX),
-      neighborhood,
-      city,
-      interests: form.interests,
+      avatar_url: avatarUrl,
+      parent_type: profile?.parent_type ?? 'parent',
+      due_date: profile?.due_date ?? null,
       postcode_district: finalPostcode.split(' ')[0] || profile?.postcode_district || '',
       updated_at: new Date().toISOString(),
     };
-    if (lat !== undefined) { update.lat = lat; update.lng = lng; }
 
     const { error: updateError } = await supabase.from('profiles').upsert(update);
 
     if (updateError) {
       setError('Failed to save changes. Please try again.');
       setSaving(false);
-    } else {
-      await refreshProfile();
-      onSave();
+      return;
     }
+
+    // Save interests separately: delete all existing, then insert new ones
+    await supabase.from('user_interests').delete().eq('user_id', user.id);
+    if (form.interests.length > 0) {
+      const rows = form.interests.map(interest => ({ user_id: user.id, interest }));
+      const { error: interestError } = await supabase.from('user_interests').insert(rows);
+      if (interestError) {
+        console.error('Failed to save interests:', interestError);
+      }
+    }
+
+    await refreshProfile();
+    onSave();
+    setSaving(false);
   }
 
   const initials = (form.name || 'Y').charAt(0).toUpperCase();
@@ -256,16 +259,6 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1.5" style={{ color: '#4a3328' }}>Neighborhood</label>
-          <input className="input-sprout" value={form.neighborhood} onChange={(e) => setForm((f) => ({ ...f, neighborhood: e.target.value }))} />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-1.5" style={{ color: '#4a3328' }}>City</label>
-          <input className="input-sprout" value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} />
-        </div>
-
-        <div>
           <label className="block text-sm font-medium mb-1.5 flex items-center gap-1.5" style={{ color: '#4a3328' }}>
             <MapPin className="w-3.5 h-3.5" /> Postcode
           </label>
@@ -284,12 +277,6 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
                   const res = await fetch(`https://api.postcodes.io/postcodes/${encodeURIComponent(pc)}`);
                   const data = await res.json();
                   if (data.status === 200 && data.result) {
-                    const { admin_ward, parliamentary_constituency, admin_district, region } = data.result;
-                    setForm(f => ({
-                      ...f,
-                      neighborhood: f.neighborhood || admin_ward || parliamentary_constituency || '',
-                      city: f.city || admin_district || region || '',
-                    }));
                     setGeocodeStatus('ok');
                   }
                 } catch { /* ignore */ }
@@ -301,7 +288,7 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
             )}
           </div>
           {geocodeStatus === 'ok' && (
-            <p className="text-xs mt-1 font-medium" style={{ color: '#059669' }}>Location found — neighbourhood and city updated!</p>
+            <p className="text-xs mt-1 font-medium" style={{ color: '#059669' }}>Location found — postcode updated!</p>
           )}
           {geocodeStatus === 'error' && (
             <p className="text-xs mt-1 font-medium" style={{ color: '#b45309' }}>Postcode not recognised — check spelling and try again.</p>

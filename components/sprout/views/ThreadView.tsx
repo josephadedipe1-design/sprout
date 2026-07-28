@@ -14,7 +14,6 @@ interface Post {
   post_type: string;
   created_at: string;
   profile: DbProfile | null;
-  is_anonymous: boolean;
   likes: number;
   liked: boolean;
 }
@@ -88,7 +87,6 @@ export default function ThreadView({ postId, onBack }: ThreadViewProps) {
         post_type: p.post_type,
         created_at: p.created_at,
         profile: profileMap[p.author_id] ?? null,
-        is_anonymous: p.is_anonymous,
         likes: likeRes.data?.length ?? 0,
         liked: !!myLike.data,
       });
@@ -172,8 +170,8 @@ export default function ThreadView({ postId, onBack }: ThreadViewProps) {
     setSubmitting(false);
   }
 
-  const authorName = post ? (post.is_anonymous ? 'Anonymous Parent' : formatName(post.profile?.first_name ?? '', post.profile?.last_initial) || 'Community Member') : '';
-  const authorAvatar = post && !post.is_anonymous ? post.profile?.avatar_url ?? '' : '';
+  const authorName = post ? (formatName(post.profile?.first_name ?? '', post.profile?.last_initial) || 'Community Member') : '';
+  const authorAvatar = post ? post.profile?.avatar_url ?? '' : '';
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 pb-32 lg:pb-6">
@@ -209,15 +207,15 @@ export default function ThreadView({ postId, onBack }: ThreadViewProps) {
                 ) : (
                   <div
                     className="w-11 h-11 rounded-full flex items-center justify-center text-base font-bold text-white"
-                    style={{ background: post.is_anonymous ? '#2563EB' : 'var(--brand)' }}
+                    style={{ background: 'var(--brand)' }}
                   >
-                    {post.is_anonymous ? '?' : authorName.charAt(0)}
+                    {authorName.charAt(0)}
                   </div>
                 )}
                 <div>
                   <p className="font-semibold" style={{ color: '#2a1f18' }}>{authorName}</p>
                   <div className="flex items-center gap-1 text-xs" style={{ color: '#9a8070' }}>
-                    {post.profile?.postcode_district && !post.is_anonymous && (
+                    {post.profile?.postcode_district && (
                       <><MapPin className="w-3 h-3" />{formatLocation(post.profile.postcode_district)} · </>
                     )}
                     {formatRelativeTime(post.created_at)}

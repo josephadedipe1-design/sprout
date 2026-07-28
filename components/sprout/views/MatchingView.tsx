@@ -7,7 +7,7 @@ import { enrichProfilesWithChildren } from '@/lib/profiles';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { sendNotificationEmail } from '@/lib/notifications';
-import type { DbProfile, DbConnection } from '@/lib/types';
+import type { DbProfile, EnrichedProfile, EnrichedDbProfile, DbConnection } from '@/lib/types';
 import UKMap from '@/components/sprout/UKMap';
 import { formatLocation, formatName } from '@/lib/utils';
 
@@ -15,7 +15,7 @@ type Tab = 'discover' | 'connections' | 'requests' | 'map';
 
 interface RealConnection {
   id: string;
-  profile: DbProfile;
+  profile: EnrichedProfile;
   requesterId: string;
 }
 
@@ -39,12 +39,12 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
   const [realConnections, setRealConnections] = useState<RealConnection[]>([]);
   const [realRequests, setRealRequests] = useState<RealConnection[]>([]);
   const [sentRequests, setSentRequests] = useState<RealConnection[]>([]);
-  const [discoverQueue, setDiscoverQueue] = useState<DbProfile[]>([]);
+  const [discoverQueue, setDiscoverQueue] = useState<EnrichedProfile[]>([]);
   const [discoverIdx, setDiscoverIdx] = useState(0);
   const [animating, setAnimating] = useState<'left' | 'right' | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [stageFilter, setStageFilter] = useState<'' | 'expecting' | 'parent' | 'both'>('');
-  const [mapProfiles, setMapProfiles] = useState<DbProfile[]>([]);
+  const [mapProfiles, setMapProfiles] = useState<EnrichedProfile[]>([]);
 
   const loadRealConnections = useCallback(async () => {
     if (!user) return;
@@ -59,11 +59,11 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
     const profileIds = Array.from(new Set(
       data.flatMap(c => [c.from_user_id, c.to_user_id]).filter(id => id !== user.id)
     ));
-    const profileMap: Record<string, DbProfile> = {};
+    const profileMap: Record<string, EnrichedProfile> = {};
     if (profileIds.length > 0) {
       const { data: rows } = await supabase.from('profiles').select('*').in('id', profileIds);
       const enriched = await enrichProfilesWithChildren((rows ?? []) as DbProfile[]);
-      enriched.forEach((p: DbProfile) => { profileMap[p.id] = p; });
+      enriched.forEach((p: EnrichedProfile) => { profileMap[p.id] = p; });
     }
 
     const mapped: RealConnection[] = data.map(c => ({
@@ -85,11 +85,11 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
     if (!data) return;
 
     const profileIds = data.map(c => c.from_user_id).filter(Boolean);
-    const profileMap: Record<string, DbProfile> = {};
+    const profileMap: Record<string, EnrichedProfile> = {};
     if (profileIds.length > 0) {
       const { data: rows } = await supabase.from('profiles').select('*').in('id', profileIds);
       const enriched = await enrichProfilesWithChildren((rows ?? []) as DbProfile[]);
-      enriched.forEach((p: DbProfile) => { profileMap[p.id] = p; });
+      enriched.forEach((p: EnrichedProfile) => { profileMap[p.id] = p; });
     }
 
     const mapped: RealConnection[] = data.map(c => ({
@@ -111,11 +111,11 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
     if (!data) return;
 
     const profileIds = data.map(c => c.to_user_id).filter(Boolean);
-    const profileMap: Record<string, DbProfile> = {};
+    const profileMap: Record<string, EnrichedProfile> = {};
     if (profileIds.length > 0) {
       const { data: rows } = await supabase.from('profiles').select('*').in('id', profileIds);
       const enriched = await enrichProfilesWithChildren((rows ?? []) as DbProfile[]);
-      enriched.forEach((p: DbProfile) => { profileMap[p.id] = p; });
+      enriched.forEach((p: EnrichedProfile) => { profileMap[p.id] = p; });
     }
 
     const mapped: RealConnection[] = data.map(c => ({
@@ -246,16 +246,16 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
     setTimeout(() => { setDiscoverIdx(i => i + 1); setAnimating(null); }, 300);
   }
 
-  function dbProfileToProfile(p: DbProfile): Profile {
+  function dbProfileToProfile(p: EnrichedDbProfile): Profile {
     return {
       id: parseInt(p.id.replace(/-/g, '').slice(0, 8), 16),
       name: formatName(p.first_name, p.last_initial) || p.first_name,
       age: 30,
       neighborhood: '',
       postcode_district: p.postcode_district,
-      childrenAges: p.children_ages,
+      childrenAges: p.children_ages ?? [],
       bio: p.bio,
-      interests: p.interests,
+      interests: p.interests ?? [],
       avatar: p.avatar_url,
       mutual: 0,
       distanceMiles: (myProfile?.lat && myProfile?.lng && p.lat && p.lng)

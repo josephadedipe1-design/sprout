@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import type { DbProfile } from '@/lib/types';
+import type { EnrichedDbProfile } from '@/lib/types';
 
 const UKMapInner = dynamic(() => import('./UKMapInner'), {
   ssr: false,
@@ -16,11 +16,11 @@ const UKMapInner = dynamic(() => import('./UKMapInner'), {
 });
 
 export interface UKMapProps {
-  profiles: (DbProfile & { lat?: number | null; lng?: number | null })[];
+  profiles: EnrichedDbProfile[];
   center?: [number, number];
   zoom?: number;
   currentUserId?: string;
-  onPinClick?: (profile: DbProfile) => void;
+  onPinClick?: (profile: EnrichedDbProfile) => void;
 }
 
 export default function UKMap(props: UKMapProps) {

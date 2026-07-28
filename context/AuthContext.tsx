@@ -3,11 +3,11 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
-import type { DbProfile } from '@/lib/types';
+import type { EnrichedDbProfile } from '@/lib/types';
 
 interface AuthContextValue {
   user: User | null;
-  profile: DbProfile | null;
+  profile: EnrichedDbProfile | null;
   loading: boolean;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -23,7 +23,7 @@ const AuthContext = createContext<AuthContextValue>({
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<DbProfile | null>(null);
+  const [profile, setProfile] = useState<EnrichedDbProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   async function loadProfile(userId: string) {

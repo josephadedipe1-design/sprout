@@ -18,7 +18,6 @@ interface Post {
   id: string;
   post_type: string;
   body: string;
-  is_anonymous: boolean;
   created_at: string;
   author_id: string;
   profile: DbProfile | null;
@@ -280,7 +279,6 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
       id: p.id,
       post_type: p.post_type,
       body: p.body,
-      is_anonymous: p.is_anonymous,
       created_at: p.created_at,
       author_id: p.author_id,
       profile: profileMap[p.author_id] ?? null,
@@ -702,8 +700,8 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
 
             const post = item.data;
             const typeInfo = TYPE_COLORS[post.post_type] ?? TYPE_COLORS.question;
-            const authorName = post.is_anonymous ? 'Anonymous Parent' : formatName(post.profile?.first_name || '', post.profile?.last_initial) || 'Community Member';
-            const authorAvatar = post.is_anonymous ? '' : (post.profile?.avatar_url || '');
+            const authorName = formatName(post.profile?.first_name || '', post.profile?.last_initial) || 'Community Member';
+            const authorAvatar = post.profile?.avatar_url || '';
             const authorLocation = post.profile?.postcode_district
               ? formatLocation(post.profile.postcode_district)
               : '';
@@ -714,18 +712,15 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
                 <div className="p-4 cursor-pointer hover:bg-orange-50/30 transition-colors" onClick={() => toggleReplies(post.id)}>
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2.5">
-                      {post.is_anonymous || !authorAvatar ? (
+                      {authorAvatar ? (
+                        <img src={authorAvatar} alt={authorName} className="w-10 h-10 rounded-full object-cover" />
+                      ) : (
                         <div
                           className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold"
-                          style={post.is_anonymous
-                            ? { background: '#EFF4FF', color: '#2563EB' }
-                            : { background: 'var(--brand-light)', color: 'var(--brand)' }
-                          }
+                          style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}
                         >
-                          {post.is_anonymous ? '?' : authorName.charAt(0)}
+                          {authorName.charAt(0)}
                         </div>
-                      ) : (
-                        <img src={authorAvatar} alt={authorName} className="w-10 h-10 rounded-full object-cover" />
                       )}
                       <div>
                         <p className="text-sm font-semibold" style={{ color: '#2a1f18' }}>{authorName}</p>

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { MapPin, Edit3, Settings, Heart, FileText, ShoppingBag, UserPlus } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
+import { fetchUserInterests } from '@/lib/profiles';
 import { formatLocation } from '@/lib/utils';
 
 interface ActivityItem {
@@ -48,6 +49,7 @@ export default function ProfileView({ onEditProfile, onSettings }: ProfileViewPr
   const { profile, user } = useAuth();
   const [stats, setStats] = useState<Stats>({ posts: 0, connections: 0, listings: 0 });
   const [activity, setActivity] = useState<ActivityItem[]>([]);
+  const [interests, setInterests] = useState<string[]>([]);
 
   useEffect(() => {
     if (!user) return;
@@ -99,6 +101,7 @@ export default function ProfileView({ onEditProfile, onSettings }: ProfileViewPr
 
     loadStats();
     loadActivity();
+    if (user) fetchUserInterests(user.id).then(setInterests);
   }, [user]);
 
   const firstName = profile?.first_name || '';
@@ -108,7 +111,6 @@ export default function ProfileView({ onEditProfile, onSettings }: ProfileViewPr
     : 'You';
   const location = formatLocation(profile?.postcode_district || '') || 'Location not set';
   const bio = profile?.bio || '';
-  const interests = profile?.interests ?? [];
   const avatarUrl = profile?.avatar_url || '';
   const initials = firstName ? firstName.charAt(0).toUpperCase() : 'Y';
 

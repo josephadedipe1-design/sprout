@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import type { DbProfile } from '@/lib/types';
+import type { EnrichedDbProfile } from '@/lib/types';
 import { formatName } from '@/lib/utils';
 
 // Fix leaflet's default icon paths broken by webpack
@@ -38,11 +38,11 @@ function RecenterMap({ lat, lng }: { lat: number; lng: number }) {
 }
 
 interface UKMapProps {
-  profiles: (DbProfile & { lat?: number | null; lng?: number | null })[];
+  profiles: EnrichedDbProfile[];
   center?: [number, number];
   zoom?: number;
   currentUserId?: string;
-  onPinClick?: (profile: DbProfile) => void;
+  onPinClick?: (profile: EnrichedDbProfile) => void;
 }
 
 export default function UKMapInner({ profiles, center, zoom = 11, currentUserId, onPinClick }: UKMapProps) {
