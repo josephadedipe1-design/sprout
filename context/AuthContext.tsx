@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import type { EnrichedDbProfile } from '@/lib/types';
@@ -26,18 +26,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<EnrichedDbProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  async function loadProfile(userId: string) {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .maybeSingle();
-    setProfile(data);
-  }
+  const loadProfile = useCallback(async (userId: string) => {
+    const [profileRes, interestsRes] = await Promise.all([
+      supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
+      supabase.from('user_interests').select('interest').eq('user_id', userId),
+    ]);
+    if (profileRes.data) {
+      const interests = (interestsRes.data ?? []).map(r => r.interest);
+      setProfile({ ...profileRes.data, interests });
+    } else {
+      setProfile(null);
+    }
+  }, []);
 
-  async function refreshProfile() {
+  const refreshProfile = useCallback(async () => {
     if (user) await loadProfile(user.id);
-  }
+  }, [user, loadProfile]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -63,7 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [loadProfile]);
 
   async function signOut() {
     await supabase.auth.signOut();

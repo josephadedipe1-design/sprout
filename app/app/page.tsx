@@ -39,7 +39,7 @@ type SubView =
 function AppContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, refreshProfile } = useAuth();
   const [mainView, setMainView] = useState<MainView>('feed');
   const [subView, setSubView] = useState<SubView>(null);
   const [feedRefreshKey, setFeedRefreshKey] = useState(0);
@@ -114,6 +114,12 @@ function AppContent() {
       router.push('/');
     }
   }, [authLoading, user, router]);
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      refreshProfile();
+    }
+  }, [authLoading, user, refreshProfile]);
 
   useEffect(() => {
     if (!authLoading && user && searchParams.get('welcome') === '1') {

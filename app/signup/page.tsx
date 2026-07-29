@@ -262,7 +262,6 @@ export default function SignupPage() {
         postcode_district: postcode.split(' ')[0] || '',
         neighborhood,
         city,
-        interests: selectedInterests,
         parent_type: parentStage || 'parent',
         due_date: dueDate,
         bio: '',
@@ -272,6 +271,13 @@ export default function SignupPage() {
 
       const { error: profileError } = await supabase.from('profiles').insert(profilePayload);
       if (profileError) throw profileError;
+
+      // Insert interests into the user_interests table
+      if (selectedInterests.length > 0) {
+        const interestRows = selectedInterests.map(interest => ({ user_id: uid, interest }));
+        const { error: interestError } = await supabase.from('user_interests').insert(interestRows);
+        if (interestError) console.error('Failed to save interests:', interestError);
+      }
 
       // Insert children rows
       const childrenToInsert = children

@@ -52,12 +52,12 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
         name: fallbackName,
         bio: profile.bio,
         postcode: profile.postcode ?? '',
-        interests: [],
+        interests: profile.interests ?? [],
       });
       setAvatarUrl(profile.avatar_url || '');
       if (user) {
         fetchUserInterests(user.id).then(interests => {
-          setForm(f => ({ ...f, interests }));
+          setForm(f => ({ ...f, interests: interests.length > 0 ? interests : f.interests }));
         });
       }
     }
@@ -161,9 +161,14 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
       update.city = newCity;
     }
 
-    const { error: updateError } = await supabase.from('profiles').upsert(update);
+    const { id: _id, ...updateWithoutId } = update;
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update(updateWithoutId)
+      .eq('id', user.id);
 
     if (updateError) {
+      console.error('Profile update error:', updateError);
       setError('Failed to save changes. Please try again.');
       setSaving(false);
       return;
