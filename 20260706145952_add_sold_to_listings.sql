@@ -1,1 +1,0 @@
-ALTER TABLE listings ADD COLUMN IF NOT EXISTS sold boolean NOT NULL DEFAULT false;
