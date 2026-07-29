@@ -9,7 +9,7 @@ import { useAuth } from '@/context/AuthContext';
 import { sendNotificationEmail } from '@/lib/notifications';
 import type { DbProfile, EnrichedProfile, EnrichedDbProfile, DbConnection } from '@/lib/types';
 import UKMap from '@/components/sprout/UKMap';
-import { formatLocation, formatName } from '@/lib/utils';
+import { formatLocation, formatName, haversineKm, kmToMiles } from '@/lib/utils';
 
 type Tab = 'discover' | 'connections' | 'requests' | 'map';
 
@@ -21,14 +21,6 @@ interface RealConnection {
 
 interface MatchingViewProps {
   onViewProfile: (profile: Profile, connected?: boolean, pendingRequest?: boolean) => void;
-}
-
-function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLng = ((lng2 - lng1) * Math.PI) / 180;
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 export default function MatchingView({ onViewProfile }: MatchingViewProps) {
@@ -145,9 +137,19 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
 
     const { data } = await query;
     const enriched = await enrichProfilesWithChildren((data ?? []) as DbProfile[]);
-    setDiscoverQueue(enriched);
+
+    // Filter to 10-mile radius using haversine distance
+    const DISCOVER_RADIUS_MILES = 10;
+    const filtered = myProfile?.lat && myProfile?.lng
+      ? enriched.filter(p => {
+          if (!p.lat || !p.lng) return false;
+          return kmToMiles(haversineKm(myProfile.lat!, myProfile.lng!, p.lat, p.lng)) <= DISCOVER_RADIUS_MILES;
+        })
+      : enriched;
+
+    setDiscoverQueue(filtered);
     setDiscoverIdx(0);
-  }, [user, stageFilter]);
+  }, [user, stageFilter, myProfile]);
 
   useEffect(() => {
     loadRealConnections();
@@ -337,7 +339,7 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold mb-0.5" style={{ color: '#2a1f18' }}>{formatName(rc.profile.first_name, rc.profile.last_initial)}</p>
                   <div className="flex items-center gap-1 text-xs" style={{ color: '#9a8070' }}>
-                    <MapPin className="w-3 h-3" />{formatLocation(rc.profile.postcode_district || '') || 'Nearby'}
+                    <MapPin className="w-3 h-3" />{formatLocation(rc.profile.postcode_district || '', rc.profile.neighborhood) || 'Nearby'}
                   </div>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {(rc.profile.children_ages ?? []).map(a => (
@@ -384,7 +386,7 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold" style={{ color: '#2a1f18' }}>{formatName(rr.profile.first_name, rr.profile.last_initial)}</p>
                         <div className="flex items-center gap-1 text-xs mb-1" style={{ color: '#9a8070' }}>
-                          <MapPin className="w-3 h-3" />{formatLocation(rr.profile.postcode_district || '') || 'Nearby'}
+                          <MapPin className="w-3 h-3" />{formatLocation(rr.profile.postcode_district || '', rr.profile.neighborhood) || 'Nearby'}
                         </div>
                         {rr.profile.bio && (
                           <p className="text-xs leading-relaxed line-clamp-2" style={{ color: '#7a6055' }}>{rr.profile.bio}</p>
@@ -439,7 +441,7 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold" style={{ color: '#2a1f18' }}>{formatName(sr.profile.first_name, sr.profile.last_initial)}</p>
                       <div className="flex items-center gap-1 text-xs" style={{ color: '#9a8070' }}>
-                        <MapPin className="w-3 h-3" />{formatLocation(sr.profile.postcode_district || '') || 'Nearby'}
+                        <MapPin className="w-3 h-3" />{formatLocation(sr.profile.postcode_district || '', sr.profile.neighborhood) || 'Nearby'}
                       </div>
                       <p className="text-xs mt-0.5 font-medium" style={{ color: '#c4a090' }}>Request pending</p>
                     </div>
@@ -559,7 +561,7 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
                         )}
                       </div>
                       <div className="flex items-center gap-1 text-xs mt-0.5" style={{ color: '#9a8070' }}>
-                        <MapPin className="w-3 h-3" />{formatLocation(current.postcode_district || '') || 'Nearby'}
+                        <MapPin className="w-3 h-3" />{formatLocation(current.postcode_district || '', current.neighborhood) || 'Nearby'}
                         {myProfile?.lat && myProfile?.lng && current.lat && current.lng && (
                           <span className="font-medium" style={{ color: '#c4a090' }}>
                             · {Math.round(haversineKm(myProfile.lat, myProfile.lng, current.lat, current.lng) * 0.621371 * 10) / 10} mi away

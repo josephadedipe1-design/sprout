@@ -49,7 +49,7 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
       setForm({
         name: fallbackName,
         bio: profile.bio,
-        postcode: profile.postcode_district ?? '',
+        postcode: profile.postcode ?? '',
         interests: [],
       });
       setAvatarUrl(profile.avatar_url || '');
@@ -103,7 +103,18 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
     setError('');
 
     const postcodeTrimmed = form.postcode.trim();
-    const postcodeChanged = postcodeTrimmed && postcodeTrimmed !== (profile?.postcode_district ?? '');
+    const fullPattern = /^[A-Z]{1,2}[0-9][0-9A-Z]?\s?[0-9][A-Z]{2}$/i;
+    if (!postcodeTrimmed || !fullPattern.test(postcodeTrimmed)) {
+      setError('Please enter your full postcode (e.g. SW1A 1AA) so we can show you nearby content.');
+      setSaving(false);
+      return;
+    }
+
+    const postcodeChanged = postcodeTrimmed && postcodeTrimmed !== (profile?.postcode ?? '');
+    let newLat: number | null = null;
+    let newLng: number | null = null;
+    let newNeighborhood = '';
+    let newCity = '';
     if (postcodeChanged) {
       setGeocoding(true);
       try {
@@ -111,6 +122,10 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
         const data = await res.json();
         if (data.status === 200 && data.result) {
           setGeocodeStatus('ok');
+          newLat = data.result.latitude;
+          newLng = data.result.longitude;
+          newNeighborhood = data.result.admin_ward || data.result.parliamentary_constituency || '';
+          newCity = data.result.admin_district || data.result.region || '';
         } else {
           setGeocodeStatus('error');
         }
@@ -123,9 +138,9 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
     const nameParts = (form.name || '').trim().split(/\s+/);
     const firstName = nameParts[0] || '';
     const lastInitial = nameParts.length > 1 ? nameParts[nameParts.length - 1][0].toUpperCase() : '';
-    const finalPostcode = postcodeTrimmed || profile?.postcode_district || '';
+    const finalPostcode = postcodeTrimmed || profile?.postcode || '';
 
-    const update = {
+    const update: Record<string, unknown> = {
       id: user.id,
       first_name: firstName,
       last_initial: lastInitial,
@@ -133,9 +148,16 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
       avatar_url: avatarUrl,
       parent_type: profile?.parent_type ?? 'parent',
       due_date: profile?.due_date ?? null,
+      postcode: finalPostcode,
       postcode_district: finalPostcode.split(' ')[0] || profile?.postcode_district || '',
       updated_at: new Date().toISOString(),
     };
+    if (newLat !== null) {
+      update.lat = newLat;
+      update.lng = newLng;
+      update.neighborhood = newNeighborhood;
+      update.city = newCity;
+    }
 
     const { error: updateError } = await supabase.from('profiles').upsert(update);
 
@@ -293,7 +315,7 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
           {geocodeStatus === 'error' && (
             <p className="text-xs mt-1 font-medium" style={{ color: '#b45309' }}>Postcode not recognised — check spelling and try again.</p>
           )}
-          <p className="text-xs mt-1" style={{ color: '#c4a090' }}>Used to show you on the community map. Only your area is ever shown.</p>
+          <p className="text-xs mt-1" style={{ color: '#c4a090' }}>Enter your full postcode (e.g. SW1A 1AA). Only your area is ever shown to others — never your full address.</p>
         </div>
 
         <div>

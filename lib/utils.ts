@@ -65,12 +65,41 @@ const DISTRICT_AREA_NAMES: Record<string, string> = {
   EH6: 'Leith', EH7: 'Edinburgh', EH8: 'Edinburgh', EH9: 'Morningside',
 };
 
-/** Maps a postcode district (e.g. "SE13") to "Area, DISTRICT" format (e.g. "Lewisham, SE13"). */
-export function formatLocation(postcode_district: string): string {
-  if (!postcode_district) return '';
+/** Maps a postcode district (e.g. "SE13") to "Area, DISTRICT" format (e.g. "Lewisham, SE13").
+ *  If a neighborhood from geocoding is provided, it takes priority over the hardcoded map. */
+export function formatLocation(postcode_district: string, neighborhood?: string): string {
+  if (!postcode_district && !neighborhood) return '';
   const upper = postcode_district.toUpperCase().trim();
-  const area = DISTRICT_AREA_NAMES[upper];
+  const area = neighborhood || DISTRICT_AREA_NAMES[upper];
   return area ? `${area}, ${upper}` : upper;
+}
+
+/** Extracts the outcode (first part) from a full postcode, e.g. "ME5 8TF" -> "ME5". */
+export function postcodeOutcode(fullPostcode: string): string {
+  if (!fullPostcode) return '';
+  return fullPostcode.trim().split(/\s+/)[0].toUpperCase();
+}
+
+/** Returns a display-safe location string from either a full postcode or an outcode. */
+export function displayLocation(fullPostcode: string | undefined, outcode: string | undefined): string {
+  const oc = outcode || postcodeOutcode(fullPostcode || '');
+  return formatLocation(oc);
+}
+
+/** Haversine distance between two lat/lng points in kilometres. */
+export function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/** Converts kilometres to miles. */
+export function kmToMiles(km: number): number {
+  return km * 0.621371;
 }
 
 /** Formats a display name as "FirstName L." when a last initial is available. */

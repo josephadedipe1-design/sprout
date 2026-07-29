@@ -62,15 +62,14 @@ export default function SearchView({ onBack }: SearchViewProps) {
         .limit(5),
       supabase
         .from('posts')
-        .select('id, body, created_at, profiles(*)')
+        .select('id, body, created_at, is_anonymous, profiles!author_id(first_name, last_initial)')
         .ilike('body', term)
-        .eq('is_anonymous', false)
         .order('created_at', { ascending: false })
         .limit(5),
       supabase
         .from('listings')
         .select('id, title, price_pence, postcode_district, image_url')
-        .ilike('title', term)
+        .or(`title.ilike.${term},description.ilike.${term}`)
         .eq('status', 'active')
         .limit(3),
     ]);
@@ -79,7 +78,7 @@ export default function SearchView({ onBack }: SearchViewProps) {
       posts: (postRes.data ?? []).map((p: any) => ({
         id: p.id,
         body: p.body,
-        profile: p.profiles as DbProfile | null,
+        profile: p.is_anonymous ? null : (p.profiles as DbProfile | null),
         created_at: p.created_at,
       })),
       listings: (listingRes.data ?? []) as ListingResult[],
@@ -114,9 +113,10 @@ export default function SearchView({ onBack }: SearchViewProps) {
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div className="relative flex-1">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: '#c4a090' }} />
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 z-10 pointer-events-none" style={{ color: '#c4a090' }} />
           <input
-            className="input-sprout pl-9"
+            className="input-sprout"
+            style={{ paddingLeft: '2.25rem' }}
             placeholder="Search people, posts, listings…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -223,7 +223,7 @@ export default function SearchView({ onBack }: SearchViewProps) {
                   <div key={p.id} className="card-sprout p-4">
                     <p className="text-sm mb-2 leading-relaxed" style={{ color: '#2a1f18', lineHeight: 1.5 }}>{p.body}</p>
                     <p className="text-xs" style={{ color: '#9a8070' }}>
-                      {formatName(p.profile?.first_name ?? '', p.profile?.last_initial) || 'Community Member'} · {formatRelativeTime(p.created_at)}
+                      {p.profile ? (formatName(p.profile.first_name ?? '', p.profile.last_initial) || 'Community Member') : 'Anonymous'} · {formatRelativeTime(p.created_at)}
                     </p>
                   </div>
                 ))}

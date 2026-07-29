@@ -34,7 +34,7 @@ export default function Sidebar({ active, onNav, onNewPost, hasUnread = false, u
   }
 
   const displayName = formatName(profile?.first_name || '', profile?.last_initial) || 'You';
-  const displayLocation = formatLocation(profile?.postcode_district || '');
+  const displayLocation = formatLocation(profile?.postcode_district || '', profile?.neighborhood);
   const avatarUrl = profile?.avatar_url || '';
   const initials = displayName.charAt(0).toUpperCase();
 

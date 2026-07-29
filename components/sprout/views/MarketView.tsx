@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, MapPin, Heart, X, ChevronDown, ShoppingBag, CheckCircle, Trash2, ImagePlus, Loader2, Car, Moon, Tag, Gamepad2, Package, Utensils, Home, BookOpen, Box } from 'lucide-react';
+import { Search, MapPin, Heart, X, ChevronDown, ShoppingBag, CheckCircle, Trash2, ImagePlus, Loader2, Car, Moon, Tag, Gamepad2, Package, Utensils, Home, BookOpen, Box, Navigation } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import type { DbListing } from '@/lib/types';
-import { getCategoryStyle, formatLocation } from '@/lib/utils';
+import { getCategoryStyle, formatLocation, haversineKm, kmToMiles } from '@/lib/utils';
 
 const DEMO_LISTINGS: never[] = [];
 
@@ -48,6 +48,8 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
   const [dbListings, setDbListings] = useState<DisplayListing[]>([]);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All');
+  const [radius, setRadius] = useState(10);
+  const [radiusLoading, setRadiusLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [newListing, setNewListing] = useState<NewListing>({ title: '', category: 'Toys', price: '', free: false, condition: 'good', description: '' });
@@ -58,21 +60,36 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
 
   const loadListings = useCallback(async () => {
     if (!user) return;
+
+    // Fetch my profile for lat/lng and saved radius
+    const { data: myProfile } = await supabase
+      .from('profiles')
+      .select('lat, lng, marketplace_radius_miles')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    const myLat = (myProfile as any)?.lat as number | null;
+    const myLng = (myProfile as any)?.lng as number | null;
+    const savedRadius = (myProfile as any)?.marketplace_radius_miles as number | undefined;
+    if (savedRadius && savedRadius !== radius) {
+      setRadius(savedRadius);
+    }
+
     const { data, error } = await supabase
       .from('listings')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(50);
+      .limit(200);
 
     if (error || !data) return;
 
-    // Fetch profiles separately
+    // Fetch seller profiles for lat/lng and names
     const sellerIds = Array.from(new Set(data.map((l: any) => l.seller_id).filter(Boolean)));
-    const profileMap: Record<string, { first_name: string }> = {};
+    const profileMap: Record<string, { first_name: string; lat: number | null; lng: number | null }> = {};
     if (sellerIds.length > 0) {
       const { data: profileRows } = await supabase
         .from('profiles')
-        .select('id, first_name')
+        .select('id, first_name, lat, lng')
         .in('id', sellerIds);
       (profileRows ?? []).forEach((p: any) => { profileMap[p.id] = p; });
     }
@@ -94,18 +111,32 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
     const { data: myLikes } = await supabase.from('listing_saves').select('listing_id').eq('user_id', user.id);
     const savedIds = new Set((myLikes ?? []).map((l: any) => l.listing_id));
 
-    const mapped: DisplayListing[] = (data as DbListing[]).map(l => ({
-      id: l.id, title: l.title, price: l.price_pence / 100, condition: l.condition, category: l.category,
-      seller: profileMap[l.seller_id]?.first_name || 'Community Member',
-      neighborhood: '',
-      postcode_district: l.postcode_district,
-      image: imageMap[l.id] || '',
-      saved: savedIds.has(l.id), sold: l.status === 'sold',
-      isDb: true, isOwn: l.seller_id === user.id,
-    }));
+    const activeRadius = savedRadius ?? radius;
+
+    const mapped: DisplayListing[] = (data as DbListing[])
+      .filter(l => {
+        // Always show own listings regardless of distance
+        if (l.seller_id === user.id) return true;
+        // Filter by haversine distance using seller lat/lng
+        if (!myLat || !myLng) return true; // fallback: show all if no location
+        const sellerLat = profileMap[l.seller_id]?.lat;
+        const sellerLng = profileMap[l.seller_id]?.lng;
+        if (!sellerLat || !sellerLng) return false;
+        const distMiles = kmToMiles(haversineKm(myLat, myLng, sellerLat, sellerLng));
+        return distMiles <= activeRadius;
+      })
+      .map(l => ({
+        id: l.id, title: l.title, price: l.price_pence / 100, condition: l.condition, category: l.category,
+        seller: profileMap[l.seller_id]?.first_name || 'Community Member',
+        neighborhood: '',
+        postcode_district: l.postcode_district,
+        image: imageMap[l.id] || '',
+        saved: savedIds.has(l.id), sold: l.status === 'sold',
+        isDb: true, isOwn: l.seller_id === user.id,
+      }));
 
     setDbListings(mapped);
-  }, [user]);
+  }, [user, radius]);
 
   useEffect(() => { loadListings(); }, [loadListings]);
 
@@ -227,7 +258,9 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
 
   const filtered = dbListings.filter(l => {
     const matchCat = category === 'All' ? true : category === 'Free' ? l.price === 0 : l.category === category;
-    return matchCat && (!search || l.title.toLowerCase().includes(search.toLowerCase()));
+    const q = search.toLowerCase().trim();
+    const matchSearch = !q || l.title.toLowerCase().includes(q) || (l as any).description?.toLowerCase?.().includes(q);
+    return matchCat && matchSearch;
   });
 
   return (
@@ -242,9 +275,35 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
 
       <div className="flex gap-2 mb-4">
         <div className="flex-1 relative">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: '#c4a090' }} />
-          <input className="input-sprout pl-9" placeholder="Search items…" value={search} onChange={e => setSearch(e.target.value)} />
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 z-10 pointer-events-none" style={{ color: '#c4a090' }} />
+          <input className="input-sprout" style={{ paddingLeft: '2.25rem' }} placeholder="Search items…" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
+      </div>
+
+      {/* Radius selector */}
+      <div className="flex items-center gap-3 mb-5">
+        <Navigation className="w-4 h-4 flex-shrink-0" style={{ color: '#9a8070' }} />
+        <span className="text-sm font-medium flex-shrink-0" style={{ color: '#7a6055' }}>Within</span>
+        <select
+          className="input-sprout py-1.5 px-3 text-sm font-medium w-auto"
+          value={radius}
+          disabled={radiusLoading}
+          onChange={async (e) => {
+            const newRadius = parseInt(e.target.value, 10);
+            setRadius(newRadius);
+            setRadiusLoading(true);
+            if (user) {
+              await supabase.from('profiles').update({ marketplace_radius_miles: newRadius }).eq('id', user.id);
+            }
+            setRadiusLoading(false);
+            loadListings();
+          }}
+        >
+          {[1, 2, 5, 10, 15, 20, 25, 30, 40, 50].map(r => (
+            <option key={r} value={r}>{r} mile{r !== 1 ? 's' : ''}</option>
+          ))}
+        </select>
+        <span className="text-xs" style={{ color: '#b8a090' }}>{radiusLoading ? 'Updating…' : 'of your address'}</span>
       </div>
 
       <div className="flex gap-2 overflow-x-auto scrollbar-hide mb-5 -mx-4 px-4">

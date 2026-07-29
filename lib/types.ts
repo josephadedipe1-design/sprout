@@ -12,7 +12,11 @@ export interface DbProfile {
   bio: string;
   avatar_url: string;
   parent_type: string;
+  postcode: string;
   postcode_district?: string;
+  marketplace_radius_miles?: number;
+  neighborhood?: string;
+  city?: string;
   due_date: string | null;
   lat: number | null;
   lng: number | null;

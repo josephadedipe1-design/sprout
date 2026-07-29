@@ -109,7 +109,7 @@ export default function ProfileView({ onEditProfile, onSettings }: ProfileViewPr
   const displayName = firstName
     ? `${firstName}${lastInitial ? ' ' + lastInitial + '.' : ''}`
     : 'You';
-  const location = formatLocation(profile?.postcode_district || '') || 'Location not set';
+  const location = formatLocation(profile?.postcode_district || '', profile?.neighborhood) || 'Location not set';
   const bio = profile?.bio || '';
   const avatarUrl = profile?.avatar_url || '';
   const initials = firstName ? firstName.charAt(0).toUpperCase() : 'Y';
