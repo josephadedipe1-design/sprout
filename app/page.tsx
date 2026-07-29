@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Eye, EyeOff, Leaf, MapPin, Users, ShieldCheck, X, CheckCircle, ArrowRight } from 'lucide-react';
@@ -22,6 +22,22 @@ export default function LoginPage() {
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
   const [forgotError, setForgotError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (cancelled || !session) return;
+      const user = session.user;
+      if (user && user.email_confirmed_at) {
+        router.replace('/app');
+      } else {
+        await supabase.auth.signOut();
+        router.replace('/verify-email');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [router]);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
