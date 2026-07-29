@@ -5,11 +5,11 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   Leaf, ArrowLeft, ArrowRight, Check, MapPin, Baby, Heart,
-  Users, Plus, Eye, EyeOff, Upload, Loader2, Star, Sun, Smile,
+  Users, Plus, Eye, EyeOff, Upload, Loader2, Star, Sun, Smile, MailCheck,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { AGE_LABEL_TO_MONTHS } from '@/lib/profiles';
-import { sendNotificationEmail } from '@/lib/notifications';
+
+const PENDING_PROFILE_KEY = 'sprout_pending_profile';
 
 // Steps 1–7 are data-collection; step 8 is the confirmation screen.
 const TOTAL_STEPS = 8;
@@ -49,7 +49,7 @@ export default function SignupPage() {
   const [showPw, setShowPw] = useState(false);
   const [signupError, setSignupError] = useState('');
   const [signingUp, setSigningUp] = useState(false);
-  const [userId, setUserId] = useState('');
+
 
   // Step 2 — name
   const [fullName, setFullName] = useState('');
@@ -70,14 +70,14 @@ export default function SignupPage() {
   const [dueMonth, setDueMonth] = useState('');
   const [children, setChildren] = useState<string[]>(['']);
 
-  // Step 6 — interests
+  // Step 6 — interests + bio
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+  const [bio, setBio] = useState('');
 
   // Step 7 — photo
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState('');
   const [avatarId, setAvatarId] = useState('');
-  const [avatarUploadFailed, setAvatarUploadFailed] = useState(false);
 
   // Submission
   const [submitting, setSubmitting] = useState(false);
@@ -179,17 +179,13 @@ export default function SignupPage() {
     setSigningUp(true);
     setSignupError('');
     try {
-      const { data: authData, error: signUpError } = await supabase.auth.signUp({ email, password });
+      const { data: authData, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: `${window.location.origin}/` },
+      });
       if (signUpError) throw signUpError;
       if (!authData.user) throw new Error('Sign up failed. Please try again.');
-
-      const { data: { user: confirmedUser }, error: getUserError } = await supabase.auth.getUser();
-      if (getUserError || !confirmedUser) {
-        // Email confirmation required — advance anyway, profile insert will fail gracefully
-        setStep(2);
-        return;
-      }
-      setUserId(confirmedUser.id);
       setStep(2);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Something went wrong. Please try again.';
@@ -203,49 +199,12 @@ export default function SignupPage() {
     }
   }
 
-  // Step 7 → upload photo + insert profile, then advance to step 8
+  // Step 7 → store profile data in localStorage (will be inserted after email verification)
   async function handleFinalSubmit() {
     if (submitting) return;
     setSubmitting(true);
     setSubmitError('');
     try {
-      const uid = userId || (await supabase.auth.getUser()).data.user?.id;
-      if (!uid) throw new Error('No user session found. Please try again.');
-
-      // Upload avatar if provided
-      let avatarUrl = '';
-      if (avatarFile) {
-        try {
-          const ext = avatarFile.name.split('.').pop() ?? 'jpg';
-          const path = `${uid}/avatar.${ext}`;
-          const { error: uploadError } = await supabase.storage
-            .from('avatars')
-            .upload(path, avatarFile, { upsert: true });
-          if (uploadError) {
-            setAvatarUploadFailed(true);
-          } else {
-            const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path);
-            avatarUrl = publicUrl;
-          }
-        } catch {
-          setAvatarUploadFailed(true);
-        }
-      }
-
-      // Geocode postcode for lat/lng
-      let lat: number | undefined;
-      let lng: number | undefined;
-      if (postcode) {
-        try {
-          const geoRes = await fetch(`https://api.postcodes.io/postcodes/${encodeURIComponent(postcode.trim())}`);
-          const geoData = await geoRes.json();
-          if (geoData.status === 200 && geoData.result) {
-            lat = geoData.result.latitude;
-            lng = geoData.result.longitude;
-          }
-        } catch { /* non-fatal */ }
-      }
-
       const nameParts = fullName.trim().split(/\s+/);
       const firstName = nameParts[0] || 'Parent';
       const lastInitial = nameParts.length > 1 ? nameParts[nameParts.length - 1][0].toUpperCase() : '';
@@ -253,47 +212,36 @@ export default function SignupPage() {
         ? `${dueYear}-${String(MONTHS.indexOf(dueMonth) + 1).padStart(2, '0')}-01`
         : null;
 
-      const profilePayload: Record<string, unknown> = {
-        id: uid,
-        name: fullName || 'New Parent',
-        first_name: firstName,
-        last_initial: lastInitial,
+      const pendingData: Record<string, unknown> = {
+        fullName: fullName || 'New Parent',
+        firstName,
+        lastInitial,
         postcode,
-        postcode_district: postcode.split(' ')[0] || '',
+        postcodeDistrict: postcode.split(' ')[0] || '',
         neighborhood,
         city,
-        parent_type: parentStage || 'parent',
-        due_date: dueDate,
-        bio: '',
-        avatar_url: avatarUrl,
+        parentType: parentStage || 'parent',
+        dueDate,
+        bio: bio.trim(),
+        interests: selectedInterests,
+        children: children.filter(Boolean),
       };
-      if (lat !== undefined) { profilePayload.lat = lat; profilePayload.lng = lng; }
 
-      const { error: profileError } = await supabase.from('profiles').insert(profilePayload);
-      if (profileError) throw profileError;
-
-      // Insert interests into the user_interests table
-      if (selectedInterests.length > 0) {
-        const interestRows = selectedInterests.map(interest => ({ user_id: uid, interest }));
-        const { error: interestError } = await supabase.from('user_interests').insert(interestRows);
-        if (interestError) console.error('Failed to save interests:', interestError);
+      if (photoPreview && avatarFile) {
+        pendingData.avatarDataUrl = photoPreview;
+        pendingData.avatarExt = avatarFile.name.split('.').pop() ?? 'jpg';
       }
 
-      // Insert children rows
-      const childrenToInsert = children
-        .filter(Boolean)
-        .map(label => ({ user_id: uid, age_months: AGE_LABEL_TO_MONTHS[label] ?? 0 }));
-      if (childrenToInsert.length > 0) {
-        await supabase.from('children').insert(childrenToInsert);
+      try {
+        localStorage.setItem(PENDING_PROFILE_KEY, JSON.stringify(pendingData));
+      } catch {
+        // localStorage quota exceeded — drop avatar data and retry
+        delete pendingData.avatarDataUrl;
+        delete pendingData.avatarExt;
+        localStorage.setItem(PENDING_PROFILE_KEY, JSON.stringify(pendingData));
       }
 
       setStep(8);
-
-      sendNotificationEmail({
-        type: 'welcome',
-        recipientUserId: uid,
-        emailData: { recipientName: firstName },
-      });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Something went wrong. Please try again.';
       setSubmitError(msg);
@@ -305,7 +253,7 @@ export default function SignupPage() {
   async function handleNext() {
     if (step === 1) { await handleStep1(); return; }
     if (step === 7) { await handleFinalSubmit(); return; }
-    if (step === 8) { router.push('/app?welcome=1'); return; }
+    if (step === 8) { router.push('/'); return; }
     setStep(s => s + 1);
   }
 
@@ -629,6 +577,20 @@ export default function SignupPage() {
               {selectedInterests.length === 0 && (
                 <p className="text-xs" style={{ color: '#b8a090' }}>Pick at least one, or skip and update later from your profile.</p>
               )}
+              <div className="pt-2">
+                <label className="block text-sm font-semibold mb-1.5" style={{ color: '#4a3328' }}>
+                  Bio <span style={{ color: '#b8a090', fontWeight: 400 }}>(optional)</span>
+                </label>
+                <textarea
+                  className="input-sprout resize-none"
+                  rows={3}
+                  placeholder="Tell other parents a bit about yourself…"
+                  value={bio}
+                  onChange={e => setBio(e.target.value)}
+                  maxLength={500}
+                />
+                <p className="text-xs mt-1" style={{ color: '#b8a090' }}>You can always change this later from your profile.</p>
+              </div>
             </div>
           )}
 
@@ -695,31 +657,19 @@ export default function SignupPage() {
           {step === 8 && (
             <div className="text-center space-y-5">
               <div className="w-20 h-20 rounded-full mx-auto flex items-center justify-center" style={{ background: 'var(--brand-light)' }}>
-                <Check className="w-10 h-10" style={{ color: 'var(--brand)' }} />
+                <MailCheck className="w-10 h-10" style={{ color: 'var(--brand)' }} />
               </div>
               <div>
                 <h2 className="text-2xl font-bold mb-2" style={{ color: '#2a1f18' }}>
-                  Welcome{fullName ? `, ${fullName.trim().split(/\s+/)[0]}` : ''}!
+                  Check your email
                 </h2>
                 <p className="text-sm leading-relaxed" style={{ color: '#7a6055' }}>
-                  You&apos;re officially part of the Sprout community. Connect with parents near you and start sharing!
+                  We&apos;ve sent a verification link to <strong style={{ color: '#2a1f18' }}>{email}</strong>. Click the link to confirm your account, then log in to join the Sprout community.
                 </p>
               </div>
-              {avatarUploadFailed && (
-                <p className="text-xs p-3 rounded-xl" style={{ background: '#FFF7ED', color: '#92400E', border: '1px solid #FDE68A' }}>
-                  Photo upload didn&apos;t work this time — you can add it from your profile after joining.
-                </p>
-              )}
-              <div className="space-y-2.5 pt-1 text-left">
-                {['Community Feed', 'Marketplace', 'Messages & Connections'].map(feature => (
-                  <div key={feature} className="flex items-center gap-3 text-sm" style={{ color: '#5a4035' }}>
-                    <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#d6ede3' }}>
-                      <Check className="w-3 h-3" style={{ color: '#2d7a52' }} />
-                    </div>
-                    <span>{feature}</span>
-                  </div>
-                ))}
-              </div>
+              <p className="text-xs" style={{ color: '#b8a090' }}>
+                Didn&apos;t get the email? Check your spam folder, or try signing up again.
+              </p>
             </div>
           )}
         </div>
@@ -743,7 +693,7 @@ export default function SignupPage() {
             style={{ opacity: canAdvance && !isBusy ? 1 : 0.45 }}
           >
             {isBusy && <Loader2 className="w-4 h-4 animate-spin" />}
-            {step === 8 ? 'Get started' : step === 7 ? (submitting ? 'Setting up…' : (photoPreview ? 'Finish' : 'Skip & finish')) : step === 1 ? (signingUp ? 'Creating account…' : 'Next') : 'Continue'}
+            {step === 8 ? 'Back to login' : step === 7 ? (submitting ? 'Saving…' : (photoPreview ? 'Finish' : 'Skip & finish')) : step === 1 ? (signingUp ? 'Creating account…' : 'Next') : 'Continue'}
             {!isBusy && step < 8 && <ArrowRight className="w-4 h-4" />}
           </button>
         </div>

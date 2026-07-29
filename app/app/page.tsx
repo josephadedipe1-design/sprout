@@ -39,7 +39,7 @@ type SubView =
 function AppContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, loading: authLoading, refreshProfile } = useAuth();
+  const { user, loading: authLoading, refreshProfile, emailConfirmed } = useAuth();
   const [mainView, setMainView] = useState<MainView>('feed');
   const [subView, setSubView] = useState<SubView>(null);
   const [feedRefreshKey, setFeedRefreshKey] = useState(0);
@@ -113,7 +113,106 @@ function AppContent() {
     if (!authLoading && !user) {
       router.push('/');
     }
-  }, [authLoading, user, router]);
+    if (!authLoading && user && !emailConfirmed) {
+      router.push('/verify-email');
+    }
+  }, [authLoading, user, emailConfirmed, router]);
+
+  // After email confirmation, save pending profile data from localStorage
+  useEffect(() => {
+    if (!authLoading && user && emailConfirmed) {
+      const PENDING_PROFILE_KEY = 'sprout_pending_profile';
+      const raw = localStorage.getItem(PENDING_PROFILE_KEY);
+      if (raw) {
+        (async () => {
+          try {
+            const data = JSON.parse(raw) as Record<string, unknown>;
+            const uid = user.id;
+
+            // Geocode postcode for lat/lng
+            let lat: number | undefined;
+            let lng: number | undefined;
+            const postcode = (data.postcode as string) || '';
+            if (postcode) {
+              try {
+                const geoRes = await fetch(`https://api.postcodes.io/postcodes/${encodeURIComponent(postcode.trim())}`);
+                const geoData = await geoRes.json();
+                if (geoData.status === 200 && geoData.result) {
+                  lat = geoData.result.latitude;
+                  lng = geoData.result.longitude;
+                }
+              } catch { /* non-fatal */ }
+            }
+
+            // Upload avatar if we stored a data URL
+            let avatarUrl = '';
+            const avatarDataUrl = data.avatarDataUrl as string | undefined;
+            const avatarExt = data.avatarExt as string | undefined;
+            if (avatarDataUrl && avatarExt) {
+              try {
+                const base64 = avatarDataUrl.split(',')[1];
+                const byteString = atob(base64);
+                const ab = new Uint8Array(byteString.length);
+                for (let i = 0; i < byteString.length; i++) ab[i] = byteString.charCodeAt(i);
+                const path = `${uid}/avatar.${avatarExt}`;
+                const { error: uploadError } = await supabase.storage
+                  .from('avatars')
+                  .upload(path, ab, { upsert: true, contentType: `image/${avatarExt}` });
+                if (!uploadError) {
+                  const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path);
+                  avatarUrl = publicUrl;
+                }
+              } catch { /* non-fatal */ }
+            }
+
+            const profilePayload: Record<string, unknown> = {
+              id: uid,
+              name: data.fullName,
+              first_name: data.firstName,
+              last_initial: data.lastInitial,
+              postcode,
+              postcode_district: data.postcodeDistrict,
+              neighborhood: data.neighborhood,
+              city: data.city,
+              parent_type: data.parentType,
+              due_date: data.dueDate,
+              bio: data.bio || '',
+              avatar_url: avatarUrl,
+            };
+            if (lat !== undefined) { profilePayload.lat = lat; profilePayload.lng = lng; }
+
+            const { error: profileError } = await supabase.from('profiles').insert(profilePayload);
+            if (profileError && profileError.code !== '23505') throw profileError;
+
+            const interests = (data.interests as string[]) || [];
+            if (interests.length > 0) {
+              const { error: interestError } = await supabase.from('user_interests').insert(
+                interests.map(i => ({ user_id: uid, interest: i }))
+              );
+              if (interestError) throw interestError;
+            }
+
+            const AGE_LABEL_TO_MONTHS: Record<string, number> = {
+              'Newborn': 0, '0-3 months': 1, '3-6 months': 4, '6-12 months': 8,
+              '1-2 years': 18, '2-3 years': 30, '3-5 years': 48, '5+ years': 60,
+            };
+            const childrenLabels = (data.children as string[]) || [];
+            if (childrenLabels.length > 0) {
+              const { error: childrenError } = await supabase.from('children').insert(
+                childrenLabels.map(label => ({ user_id: uid, age_months: AGE_LABEL_TO_MONTHS[label] ?? 0 }))
+              );
+              if (childrenError) throw childrenError;
+            }
+
+            localStorage.removeItem(PENDING_PROFILE_KEY);
+            refreshProfile();
+          } catch (err) {
+            console.error('Failed to save pending profile:', err);
+          }
+        })();
+      }
+    }
+  }, [authLoading, user, emailConfirmed, refreshProfile]);
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -129,7 +228,7 @@ function AppContent() {
     }
   }, [authLoading, user, searchParams, router]);
 
-  if (authLoading || !user) {
+  if (authLoading || !user || !emailConfirmed) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg)' }}>
         <div className="flex flex-col items-center gap-4">

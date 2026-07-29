@@ -248,6 +248,7 @@ export default function MatchingView({ onViewProfile, initialTab }: MatchingView
         ? Math.round(haversineKm(myProfile.lat, myProfile.lng, p.lat, p.lng) * 0.621371 * 10) / 10
         : 0,
       expecting: p.parent_type === 'expecting' || p.parent_type === 'both',
+      parent_type: p.parent_type,
       userId: p.id,
     };
   }

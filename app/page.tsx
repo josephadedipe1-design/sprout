@@ -27,12 +27,15 @@ export default function LoginPage() {
     e.preventDefault();
     setError('');
     setLoading(true);
-    const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
+    const { data: loginData, error: authError } = await supabase.auth.signInWithPassword({ email, password });
     if (authError) {
       setError(authError.message === 'Invalid login credentials'
         ? 'Incorrect email or password. Please try again.'
         : authError.message);
       setLoading(false);
+    } else if (loginData.user && !loginData.user.email_confirmed_at) {
+      await supabase.auth.signOut();
+      router.push('/verify-email');
     } else {
       router.push('/app');
     }

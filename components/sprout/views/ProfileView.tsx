@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { MapPin, Edit3, Settings, Heart, FileText, ShoppingBag, UserPlus } from 'lucide-react';
+import { MapPin, Edit3, Settings, Heart, FileText, ShoppingBag, UserPlus, Baby, Users } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { fetchUserInterests } from '@/lib/profiles';
@@ -21,6 +21,12 @@ interface Stats {
   connections: number;
   listings: number;
 }
+
+const PARENT_TYPE_META: Record<string, { Icon: React.ElementType; label: string; color: string; bg: string }> = {
+  expecting: { Icon: Baby,  label: 'Expecting',          color: '#2563EB', bg: '#EFF4FF' },
+  parent:   { Icon: Heart, label: 'Parent',             color: 'var(--brand)', bg: 'var(--brand-light)' },
+  both:     { Icon: Users, label: 'Parent & Expecting',  color: '#7c3aed', bg: '#F3EBFD' },
+};
 
 const TYPE_META: Record<string, { Icon: React.ElementType; color: string; bg: string; label: string }> = {
   post:       { Icon: FileText,    color: 'var(--brand)',  bg: 'var(--brand-light)', label: 'Post' },
@@ -178,6 +184,20 @@ export default function ProfileView({ onEditProfile, onSettings }: ProfileViewPr
           </div>
         </div>
       </div>
+
+      {/* Life stage badge */}
+      {(() => {
+        const meta = profile?.parent_type ? PARENT_TYPE_META[profile.parent_type] : undefined;
+        if (!meta) return null;
+        const Icon = meta.Icon;
+        return (
+          <div className="mb-4">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold" style={{ background: meta.bg, color: meta.color }}>
+              <Icon className="w-3.5 h-3.5" /> {meta.label}
+            </span>
+          </div>
+        );
+      })()}
 
       {/* Bio */}
       {bio ? (

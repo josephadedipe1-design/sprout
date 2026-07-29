@@ -303,7 +303,7 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
             <option key={r} value={r}>{r} mile{r !== 1 ? 's' : ''}</option>
           ))}
         </select>
-        <span className="text-xs" style={{ color: '#b8a090' }}>{radiusLoading ? 'Updating…' : 'of your address'}</span>
+        <span className="text-xs" style={{ color: '#b8a090' }}>{radiusLoading ? 'Updating…' : 'of your postcode'}</span>
       </div>
 
       <div className="flex gap-2 overflow-x-auto scrollbar-hide mb-5 -mx-4 px-4">

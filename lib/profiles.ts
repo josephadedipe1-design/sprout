@@ -13,6 +13,7 @@ export interface Profile {
   mutual: number;
   distanceMiles: number;
   expecting: boolean;
+  parent_type?: string;
   userId?: string;
   lat?: number | null;
   lng?: number | null;

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowLeft, MapPin, Baby, Star, Heart, UserPlus, MessageCircle, X, Loader2 } from 'lucide-react';
+import { ArrowLeft, MapPin, Baby, Star, Heart, UserPlus, MessageCircle, X, Loader2, Users } from 'lucide-react';
 import { Profile } from '@/lib/profiles';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
@@ -88,6 +88,22 @@ export default function PublicProfileView({ profile, onBack, onConnect, onMessag
       <p className="text-sm leading-relaxed mb-4" style={{ color: '#5a4035', lineHeight: 1.6 }}>
         {profile.bio}
       </p>
+
+      {/* Life stage badge */}
+      {(() => {
+        const meta = profile.parent_type
+          ? { expecting: { Icon: Baby, label: 'Expecting', color: '#2563EB', bg: '#EFF4FF' }, parent: { Icon: Heart, label: 'Parent', color: 'var(--brand)', bg: 'var(--brand-light)' }, both: { Icon: Users, label: 'Parent & Expecting', color: '#7c3aed', bg: '#F3EBFD' } }[profile.parent_type]
+          : undefined;
+        if (!meta) return null;
+        const Icon = meta.Icon;
+        return (
+          <div className="mb-4">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold" style={{ background: meta.bg, color: meta.color }}>
+              <Icon className="w-3.5 h-3.5" /> {meta.label}
+            </span>
+          </div>
+        );
+      })()}
 
       {/* Children tags */}
       <div className="flex flex-wrap gap-1.5 mb-4">

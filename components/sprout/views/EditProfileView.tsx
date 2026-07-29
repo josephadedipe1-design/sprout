@@ -175,13 +175,12 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
     }
 
     // Save interests separately: delete all existing, then insert new ones
-    await supabase.from('user_interests').delete().eq('user_id', user.id);
+    const { error: deleteError } = await supabase.from('user_interests').delete().eq('user_id', user.id);
+    if (deleteError) throw deleteError;
     if (form.interests.length > 0) {
       const rows = form.interests.map(interest => ({ user_id: user.id, interest }));
       const { error: interestError } = await supabase.from('user_interests').insert(rows);
-      if (interestError) {
-        console.error('Failed to save interests:', interestError);
-      }
+      if (interestError) throw interestError;
     }
 
     await refreshProfile();
