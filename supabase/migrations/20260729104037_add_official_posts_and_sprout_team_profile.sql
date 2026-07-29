@@ -6,12 +6,11 @@
   Sprout Team announcement that bypasses the 10-mile radius filter and is
   visible to all users regardless of location.
 
-2. New Data
-- Creates an auth user with the fixed admin UUID 4848415f-2bbe-409a-8443-eb925b0b88e8
-  (email: sprout-team@sproutapp.local) so the FK on profiles is satisfied.
-- Inserts a "Sprout Team" system profile into `profiles` with first_name "Sprout",
-  last_initial "T", bio "Official Sprout community updates", parent_type "parent".
-  This profile acts as the author of official broadcast posts.
+2. Profile Update
+- Updates the existing profile for the admin account (already a real user)
+  to carry the "Sprout Team" identity — first_name "Sprout", last_initial "T",
+  and an official bio. This is your own existing account; no new auth user
+  is created.
 
 3. Security (RLS)
 - Replaces the existing INSERT and UPDATE policies on `posts` so that:
@@ -23,42 +22,12 @@
 - SELECT and DELETE policies remain unchanged.
 
 4. Important Notes
-- The admin user ID 4848415f-2bbe-409a-8443-eb925b0b88e8 is the only account
-  allowed to publish official announcements, enforced at the database level.
 - All statements are idempotent (IF NOT EXISTS / ON CONFLICT / DROP IF EXISTS).
 */
 
 ALTER TABLE posts ADD COLUMN IF NOT EXISTS is_official boolean NOT NULL DEFAULT false;
 
--- Create the admin auth user (idempotent)
-INSERT INTO auth.users (
-  instance_id,
-  id,
-  aud,
-  role,
-  email,
-  encrypted_password,
-  email_confirmed_at,
-  created_at,
-  updated_at,
-  raw_app_meta_data,
-  raw_user_meta_data
-)
-SELECT
-  '00000000-0000-0000-0000-000000000000',
-  '4848415f-2bbe-409a-8443-eb925b0b88e8',
-  'authenticated',
-  'authenticated',
-  'sprout-team@sproutapp.local',
-  crypt('SproutAdmin2024!', gen_salt('bf')),
-  now(),
-  now(),
-  now(),
-  '{}'::jsonb,
-  '{}'::jsonb
-WHERE NOT EXISTS (SELECT 1 FROM auth.users WHERE id = '4848415f-2bbe-409a-8443-eb925b0b88e8');
-
--- Create the Sprout Team system profile (idempotent)
+-- Ensure the Sprout Team profile exists on your existing account (idempotent)
 INSERT INTO profiles (id, first_name, last_initial, bio, parent_type, postcode, postcode_district)
 VALUES (
   '4848415f-2bbe-409a-8443-eb925b0b88e8',
@@ -69,7 +38,10 @@ VALUES (
   '',
   ''
 )
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET
+  first_name = 'Sprout',
+  last_initial = 'T',
+  bio = 'Official Sprout community updates and announcements.';
 
 -- Replace INSERT policy: restrict is_official to admin only
 DROP POLICY IF EXISTS "posts_insert" ON posts;
