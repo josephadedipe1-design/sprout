@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Leaf, ArrowLeft, Send, Loader2, CheckCircle } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { Leaf, ArrowLeft, Send, Loader2, CheckCircle, Bold, Italic, Underline, ImagePlus, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 
@@ -19,6 +19,10 @@ export default function BroadcastView({ onBack }: BroadcastViewProps) {
   const [publishing, setPublishing] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!user || user.id !== ADMIN_ID) {
     return (
@@ -31,6 +35,49 @@ export default function BroadcastView({ onBack }: BroadcastViewProps) {
         </div>
       </div>
     );
+  }
+
+  function wrapSelection(marker: string) {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const selected = body.substring(start, end);
+    const replacement = `${marker}${selected || 'text'}${marker}`;
+    const newBody = body.substring(0, start) + replacement + body.substring(end);
+    setBody(newBody);
+    requestAnimationFrame(() => {
+      ta.focus();
+      const selStart = start + marker.length;
+      const selEnd = selStart + (selected || 'text').length;
+      ta.setSelectionRange(selStart, selEnd);
+    });
+  }
+
+  async function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setError('');
+    try {
+      const ext = file.name.split('.').pop() || 'jpg';
+      const fileName = `announcement-${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from('announcement-images')
+        .upload(fileName, file, { cacheControl: '3600', upsert: false });
+      if (uploadError) throw uploadError;
+      const { data: pub } = supabase.storage.from('announcement-images').getPublicUrl(fileName);
+      setImageUrl(pub.publicUrl);
+    } catch (err: any) {
+      setError(err.message || 'Failed to upload image.');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
+  function handleRemoveImage() {
+    setImageUrl('');
   }
 
   async function handlePublish() {
@@ -49,6 +96,7 @@ export default function BroadcastView({ onBack }: BroadcastViewProps) {
       is_anonymous: false,
       is_official: true,
       postcode_district: '',
+      image_url: imageUrl || null,
     });
 
     setPublishing(false);
@@ -60,6 +108,7 @@ export default function BroadcastView({ onBack }: BroadcastViewProps) {
 
     setSuccess(true);
     setBody('');
+    setImageUrl('');
     setTimeout(() => setSuccess(false), 4000);
   }
 
@@ -107,17 +156,88 @@ export default function BroadcastView({ onBack }: BroadcastViewProps) {
           </select>
         </div>
 
-        <div className="mb-5">
+        <div className="mb-4">
           <label className="block text-sm font-semibold mb-2" style={{ color: '#3a2820' }}>Message</label>
+
+          <div className="flex items-center gap-1 mb-2 p-1.5 rounded-xl" style={{ background: 'var(--surface)', border: '1px solid var(--border-color)' }}>
+            <button
+              type="button"
+              onClick={() => wrapSelection('**')}
+              className="p-2 rounded-lg hover:bg-white transition-colors"
+              title="Bold"
+              style={{ color: '#3a2820' }}
+            >
+              <Bold className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => wrapSelection('_')}
+              className="p-2 rounded-lg hover:bg-white transition-colors"
+              title="Italic"
+              style={{ color: '#3a2820' }}
+            >
+              <Italic className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => wrapSelection('++')}
+              className="p-2 rounded-lg hover:bg-white transition-colors"
+              title="Underline"
+              style={{ color: '#3a2820' }}
+            >
+              <Underline className="w-4 h-4" />
+            </button>
+            <div className="w-px h-5 mx-1" style={{ background: 'var(--border-color)' }} />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading || !!imageUrl}
+              className="p-2 rounded-lg hover:bg-white transition-colors disabled:opacity-40"
+              title="Add image"
+              style={{ color: '#3a2820' }}
+            >
+              {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImagePlus className="w-4 h-4" />}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleImageSelect}
+              className="hidden"
+            />
+          </div>
+
           <textarea
+            ref={textareaRef}
             className="input-sprout min-h-[140px] resize-y"
-            placeholder="Write your announcement here…"
+            placeholder="Write your announcement here… Use the toolbar for bold, italic, and underline."
             value={body}
             onChange={(e) => setBody(e.target.value)}
             maxLength={2000}
           />
-          <p className="text-xs mt-1" style={{ color: '#c4a090' }}>{body.length} / 2000 characters</p>
+          <p className="text-xs mt-1" style={{ color: '#c4a090' }}>
+            {body.length} / 2000 characters · Use **bold**, _italic_, ++underline++
+          </p>
         </div>
+
+        {imageUrl && (
+          <div className="mb-5 relative inline-block">
+            <img
+              src={imageUrl}
+              alt="Announcement preview"
+              className="rounded-xl max-h-48 object-cover"
+              style={{ border: '1px solid var(--border-color)' }}
+            />
+            <button
+              type="button"
+              onClick={handleRemoveImage}
+              className="absolute -top-2 -right-2 w-7 h-7 rounded-full flex items-center justify-center shadow-md"
+              style={{ background: '#DC2626', color: 'white' }}
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
         <button
           onClick={handlePublish}

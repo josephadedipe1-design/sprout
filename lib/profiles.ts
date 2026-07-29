@@ -19,11 +19,9 @@ export interface Profile {
 }
 
 const AGE_MONTHS_TO_LABEL: [number, string][] = [
-  [60, '5 years'],
-  [48, '4 years'],
-  [36, '3 years'],
-  [24, '2 years'],
-  [12, '1 year'],
+  [108, '9 - 11 years'],
+  [60, '5 - 8 years'],
+  [24, '2 - 4 years'],
   [0, 'Under 1 year'],
 ];
 
@@ -36,11 +34,9 @@ export function ageMonthsToLabel(months: number): string {
 
 export const AGE_LABEL_TO_MONTHS: Record<string, number> = {
   'Under 1 year': 0,
-  '1 year': 12,
-  '2 years': 24,
-  '3 years': 36,
-  '4 years': 48,
-  '5 years': 60,
+  '2 - 4 years': 24,
+  '5 - 8 years': 60,
+  '9 - 11 years': 108,
 };
 
 /** Fetches children rows and user_interests for the given profile IDs and returns enriched profiles. */

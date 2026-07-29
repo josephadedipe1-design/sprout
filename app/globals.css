@@ -142,4 +142,13 @@
 
   .scrollbar-hide::-webkit-scrollbar { display: none; }
   .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+  .announcement-body p { margin: 0 0 0.5rem 0; }
+  .announcement-body p:last-child { margin-bottom: 0; }
+  .announcement-body strong { font-weight: 700; }
+  .announcement-body em { font-style: italic; }
+  .announcement-body u { text-decoration: underline; }
+  .announcement-body a { color: var(--brand); text-decoration: underline; }
+  .announcement-body ul, .announcement-body ol { margin: 0.25rem 0 0.5rem 1.25rem; padding: 0; }
+  .announcement-body li { margin-bottom: 0.25rem; }
 }

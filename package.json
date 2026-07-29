@@ -50,12 +50,14 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",
     "date-fns": "^3.6.0",
+    "dompurify": "^3.4.12",
     "embla-carousel-react": "^8.3.0",
     "eslint": "8.49.0",
     "eslint-config-next": "13.5.1",
     "input-otp": "^1.2.4",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.446.0",
+    "marked": "^18.0.7",
     "next": "13.5.1",
     "next-themes": "^0.3.0",
     "postcss": "8.4.30",
@@ -73,5 +75,8 @@
     "typescript": "5.2.2",
     "vaul": "^0.9.9",
     "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/dompurify": "^3.0.5"
   }
 }

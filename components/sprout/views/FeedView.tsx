@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, MapPin, Leaf, Copy, Check as CheckIcon, ShoppingBag, Tag, Car, Moon, Gamepad2, Package, Utensils, Home, BookOpen, Box, Trash2, Loader2, Send } from 'lucide-react';
+import { renderAnnouncementMarkdown } from '@/lib/announcement-markdown';
 // Share2 kept for the first-in-area invite card only
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
@@ -22,6 +23,7 @@ interface Post {
   author_id: string;
   profile: DbProfile | null;
   is_official: boolean;
+  image_url: string | null;
   likes: number;
   comments: number;  liked: boolean;
   saved: boolean;
@@ -194,6 +196,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
       author_id: p.author_id,
       profile: profileMap[p.author_id] ?? null,
       is_official: p.is_official ?? false,
+      image_url: p.image_url ?? null,
       likes: p.likes?.[0]?.count ?? 0,
       comments: p.reply_count?.[0]?.count ?? 0,
       liked: likedIds.has(p.id),
@@ -692,7 +695,23 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
                     </div>
                   </div>
 
-                  <p className="text-sm leading-relaxed mb-3" style={{ color: '#3a2820', lineHeight: 1.6 }}>{post.body}</p>
+                  {isOfficial ? (
+                    <div
+                      className="text-sm leading-relaxed mb-3 announcement-body"
+                      style={{ color: '#3a2820', lineHeight: 1.6 }}
+                      dangerouslySetInnerHTML={{ __html: renderAnnouncementMarkdown(post.body) }}
+                    />
+                  ) : (
+                    <p className="text-sm leading-relaxed mb-3" style={{ color: '#3a2820', lineHeight: 1.6 }}>{post.body}</p>
+                  )}
+                  {post.image_url && (
+                    <img
+                      src={post.image_url}
+                      alt="Announcement image"
+                      className="w-full rounded-xl mb-3 object-cover"
+                      style={{ maxHeight: 400, border: '1px solid var(--border-color)' }}
+                    />
+                  )}
                 </div>
 
                 <div className="flex items-center border-t px-4 py-2.5" style={{ borderColor: 'var(--border-color)' }}>

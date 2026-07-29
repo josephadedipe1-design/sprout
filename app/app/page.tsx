@@ -51,6 +51,7 @@ function AppContent() {
   const [hasUnread, setHasUnread] = useState(false);
   const [marketTrigger, setMarketTrigger] = useState(false);
   const [marketOpenListingId, setMarketOpenListingId] = useState<string | null>(null);
+  const [matchingInitialTab, setMatchingInitialTab] = useState<'discover' | 'connections' | 'requests' | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -139,7 +140,7 @@ function AppContent() {
     return (
       <WelcomeView
         onDone={() => setShowWelcome(false)}
-        onGoToMatching={() => { setShowWelcome(false); setMainView('matching'); }}
+        onGoToMatching={() => { setShowWelcome(false); setMatchingInitialTab(null); setMainView('matching'); }}
       />
     );
   }
@@ -148,6 +149,7 @@ function AppContent() {
     setMainView(view);
     setSubView(null);
     if (view !== 'messages') setMobileChatActive(false);
+    if (view !== 'matching') setMatchingInitialTab(null);
     if (view === 'notifications') {
       setHasUnread(false);
       localStorage.setItem('sprout_notifs_seen_at', new Date().toISOString());
@@ -234,14 +236,16 @@ function AppContent() {
       case 'matching':
         return (
           <MatchingView
+            key={matchingInitialTab ?? 'default'}
             onViewProfile={(profile, connected = false, pendingRequest = false) => setSubView({ type: 'publicprofile', profile, connected, pendingRequest })}
+            initialTab={matchingInitialTab ?? undefined}
           />
         );
       case 'notifications':
         return (
           <NotificationsView
             onGoToFeed={() => navigate('feed')}
-            onGoToMatching={() => navigate('matching')}
+            onGoToMatching={() => { setMatchingInitialTab('requests'); navigate('matching'); }}
             onGoToMessages={() => navigate('messages')}
             onOpenThread={(id) => setSubView({ type: 'thread', postId: id })}
           />

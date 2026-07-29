@@ -1,17 +1,16 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { X, Heart, MapPin, Baby, Star, SlidersHorizontal, ChevronRight, UserPlus, Users, Compass, Check, Clock, Map } from 'lucide-react';
+import { X, Heart, MapPin, Baby, Star, SlidersHorizontal, ChevronRight, UserPlus, Users, Compass, Check, Clock } from 'lucide-react';
 import type { Profile } from '@/lib/profiles';
 import { enrichProfilesWithChildren } from '@/lib/profiles';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { sendNotificationEmail } from '@/lib/notifications';
 import type { DbProfile, EnrichedProfile, EnrichedDbProfile, DbConnection } from '@/lib/types';
-import UKMap from '@/components/sprout/UKMap';
 import { formatLocation, formatName, haversineKm, kmToMiles } from '@/lib/utils';
 
-type Tab = 'discover' | 'connections' | 'requests' | 'map';
+type Tab = 'discover' | 'connections' | 'requests';
 
 interface RealConnection {
   id: string;
@@ -21,11 +20,12 @@ interface RealConnection {
 
 interface MatchingViewProps {
   onViewProfile: (profile: Profile, connected?: boolean, pendingRequest?: boolean) => void;
+  initialTab?: Tab;
 }
 
-export default function MatchingView({ onViewProfile }: MatchingViewProps) {
+export default function MatchingView({ onViewProfile, initialTab }: MatchingViewProps) {
   const { user, profile: myProfile } = useAuth();
-  const [tab, setTab] = useState<Tab>('connections');
+  const [tab, setTab] = useState<Tab>(initialTab ?? 'connections');
 
   // DB state
   const [realConnections, setRealConnections] = useState<RealConnection[]>([]);
@@ -36,7 +36,6 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
   const [animating, setAnimating] = useState<'left' | 'right' | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [stageFilter, setStageFilter] = useState<'' | 'expecting' | 'parent' | 'both'>('');
-  const [mapProfiles, setMapProfiles] = useState<EnrichedProfile[]>([]);
 
   const loadRealConnections = useCallback(async () => {
     if (!user) return;
@@ -178,21 +177,6 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
     if (tab === 'discover') loadDiscoverProfiles();
   }, [tab, loadDiscoverProfiles]);
 
-  const loadMapProfiles = useCallback(async () => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .not('lat', 'is', null)
-      .not('lng', 'is', null)
-      .limit(100);
-    const enriched = await enrichProfilesWithChildren((data ?? []) as DbProfile[]);
-    setMapProfiles(enriched);
-  }, []);
-
-  useEffect(() => {
-    if (tab === 'map') loadMapProfiles();
-  }, [tab, loadMapProfiles]);
-
   async function acceptRealRequest(connId: string) {
     await supabase.from('match_requests').update({ status: 'connected' }).eq('id', connId);
     await loadRealConnections();
@@ -277,7 +261,6 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
     { id: 'connections' as Tab, label: 'My Village', icon: Users, count: totalConnections },
     { id: 'requests' as Tab, label: 'Requests', icon: UserPlus, count: totalRequests },
     { id: 'discover' as Tab, label: 'Discover', icon: Compass, count: 0 },
-    { id: 'map' as Tab, label: 'Map', icon: Map, count: 0 },
   ];
 
   return (
@@ -632,44 +615,6 @@ export default function MatchingView({ onViewProfile }: MatchingViewProps) {
         </div>
       )}
 
-      {/* ── Map ── */}
-      {tab === 'map' && (
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-sm" style={{ color: '#9a8070' }}>
-              {mapProfiles.length > 0
-                ? `${mapProfiles.length} parent${mapProfiles.length !== 1 ? 's' : ''} on the map`
-                : 'Parents will appear here once they join with a UK postcode'}
-            </p>
-          </div>
-
-          {mapProfiles.length === 0 ? (
-            <div className="rounded-2xl overflow-hidden flex flex-col items-center justify-center py-16" style={{ background: '#f0ece5', border: '1px solid var(--border-color)' }}>
-              <MapPin className="w-10 h-10 mb-3" style={{ color: '#c4a090' }} />
-              <p className="text-sm font-semibold mb-1" style={{ color: '#2a1f18' }}>No parents on the map yet</p>
-              <p className="text-sm text-center max-w-xs" style={{ color: '#9a8070' }}>
-                As parents sign up with UK postcodes, they&apos;ll appear as pins here.
-              </p>
-            </div>
-          ) : (
-            <div className="rounded-2xl overflow-hidden" style={{ height: 480, border: '1px solid var(--border-color)' }}>
-              <UKMap
-                profiles={mapProfiles}
-                currentUserId={user?.id}
-                center={myProfile?.lat && myProfile?.lng ? [myProfile.lat, myProfile.lng] : undefined}
-                zoom={myProfile?.lat ? 12 : 6}
-                onPinClick={(p) => onViewProfile(dbProfileToProfile(p))}
-              />
-            </div>
-          )}
-
-          {myProfile && !myProfile.lat && (
-            <div className="mt-3 p-3 rounded-xl text-sm" style={{ background: '#fdf0cc', border: '1px solid #f5d87a', color: '#92680a' }}>
-              Your profile doesn&apos;t have a location set yet. Update your postcode in Edit Profile to appear on the map.
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
