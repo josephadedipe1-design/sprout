@@ -21,7 +21,7 @@ function emailTemplate(preview: string, bodyContent: string): string {
       <table width="480" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
         <tr>
           <td style="background:linear-gradient(135deg,#7D3C1A 0%,#4A1E0A 100%);padding:28px 32px;">
-            <span style="font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;"><span style="display:inline-block;width:32px;height:32px;line-height:32px;text-align:center;background:#ffffff;color:#7D3C1A;border-radius:8px;font-size:18px;font-weight:800;margin-right:10px;vertical-align:middle;">S</span>Sprout Village</span>
+            <span style="font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;"><img src="https://sprout-village.co.uk/sprout-logo.svg" width="32" height="32" style="vertical-align:middle;margin-right:10px;border-radius:8px;" alt="Sprout" />Sprout Village</span>
           </td>
         </tr>
         <tr><td style="padding:32px;">

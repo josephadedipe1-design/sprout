@@ -29,7 +29,7 @@ function htmlTemplate(title: string, preview: string, bodyContent: string): stri
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td style="vertical-align:middle;">
-                    <span style="font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;"><span style="display:inline-block;width:32px;height:32px;line-height:32px;text-align:center;background:#ffffff;color:#7D3C1A;border-radius:8px;font-size:18px;font-weight:800;margin-right:10px;vertical-align:middle;">S</span>Sprout Village</span>
+                    <span style="font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;"><img src="https://sprout-village.co.uk/sprout-logo.svg" width="32" height="32" style="vertical-align:middle;margin-right:10px;border-radius:8px;" alt="Sprout" />Sprout Village</span>
                   </td>
                 </tr>
               </table>
