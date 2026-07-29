@@ -21,6 +21,7 @@ interface Post {
   created_at: string;
   author_id: string;
   profile: DbProfile | null;
+  is_official: boolean;
   likes: number;
   comments: number;  liked: boolean;
   saved: boolean;
@@ -160,6 +161,8 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
     // Filter posts to 10-mile radius using haversine distance
     const FEED_RADIUS_MILES = 10;
     const filteredData = (data as any[]).filter(p => {
+      // Official Sprout Team posts bypass the radius filter — visible to all
+      if (p.is_official) return true;
       // Always show own posts
       if (p.author_id === user.id) return true;
       // If we don't have user location, fall back to showing all
@@ -190,6 +193,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
       created_at: p.created_at,
       author_id: p.author_id,
       profile: profileMap[p.author_id] ?? null,
+      is_official: p.is_official ?? false,
       likes: p.likes?.[0]?.count ?? 0,
       comments: p.reply_count?.[0]?.count ?? 0,
       liked: likedIds.has(p.id),
@@ -614,11 +618,16 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
 
             const post = item.data;
             const typeInfo = TYPE_COLORS[post.post_type] ?? TYPE_COLORS.question;
-            const authorName = formatName(post.profile?.first_name || '', post.profile?.last_initial) || 'Community Member';
-            const authorAvatar = post.profile?.avatar_url || '';
-            const authorLocation = post.profile?.postcode_district
-              ? formatLocation(post.profile.postcode_district, post.profile.neighborhood)
-              : '';
+            const isOfficial = post.is_official;
+            const authorName = isOfficial
+              ? 'Sprout Team'
+              : (formatName(post.profile?.first_name || '', post.profile?.last_initial) || 'Community Member');
+            const authorAvatar = isOfficial ? '' : (post.profile?.avatar_url || '');
+            const authorLocation = isOfficial
+              ? ''
+              : (post.profile?.postcode_district
+                ? formatLocation(post.profile.postcode_district, post.profile.neighborhood)
+                : '');
             const timeAgo = formatRelativeTime(post.created_at);
 
             return (
@@ -626,7 +635,11 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
                 <div className="p-4 cursor-pointer hover:bg-orange-50/30 transition-colors" onClick={() => toggleReplies(post.id)}>
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2.5">
-                      {authorAvatar ? (
+                      {isOfficial ? (
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'var(--brand)' }}>
+                          <Leaf className="w-5 h-5 text-white" />
+                        </div>
+                      ) : authorAvatar ? (
                         <img src={authorAvatar} alt={authorName} className="w-10 h-10 rounded-full object-cover" />
                       ) : (
                         <div
@@ -645,7 +658,11 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="tag-sprout" style={{ background: typeInfo.bg, color: typeInfo.text }}>{typeInfo.label}</span>
+                      {isOfficial ? (
+                        <span className="tag-sprout" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>Announcement</span>
+                      ) : (
+                        <span className="tag-sprout" style={{ background: typeInfo.bg, color: typeInfo.text }}>{typeInfo.label}</span>
+                      )}
                       {post.author_id === user?.id && (
                         <div className="relative" onClick={e => e.stopPropagation()}>
                           <button

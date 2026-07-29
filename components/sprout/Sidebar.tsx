@@ -1,9 +1,11 @@
 'use client';
 
-import { Leaf, Home, MessageCircle, Users, Bell, User, Search, Plus, LogOut, ShoppingBag } from 'lucide-react';
+import { Leaf, Home, MessageCircle, Users, Bell, User, Search, Plus, LogOut, ShoppingBag, Megaphone } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { formatLocation, formatName } from '@/lib/utils';
+
+const ADMIN_ID = '4848415f-2bbe-409a-8443-eb925b0b88e8';
 
 type View = 'feed' | 'market' | 'messages' | 'matching' | 'notifications' | 'profile' | 'search';
 
@@ -11,6 +13,7 @@ interface SidebarProps {
   active: View;
   onNav: (v: View) => void;
   onNewPost?: () => void;
+  onBroadcast?: () => void;
   hasUnread?: boolean;
   unreadMessages?: number;
 }
@@ -24,9 +27,10 @@ const NAV = [
   { id: 'profile',       icon: User,          label: 'Profile' },
 ] as const;
 
-export default function Sidebar({ active, onNav, onNewPost, hasUnread = false, unreadMessages = 0 }: SidebarProps) {
-  const { profile, signOut } = useAuth();
+export default function Sidebar({ active, onNav, onNewPost, onBroadcast, hasUnread = false, unreadMessages = 0 }: SidebarProps) {
+  const { profile, signOut, user } = useAuth();
   const router = useRouter();
+  const isAdmin = user?.id === ADMIN_ID;
 
   async function handleSignOut() {
     await signOut();
@@ -97,6 +101,15 @@ export default function Sidebar({ active, onNav, onNewPost, hasUnread = false, u
             </button>
           );
         })}
+        {isAdmin && onBroadcast && (
+          <button
+            onClick={onBroadcast}
+            className="sidebar-link w-full"
+          >
+            <Megaphone className="w-5 h-5 flex-shrink-0" />
+            Broadcast
+          </button>
+        )}
       </nav>
 
       {/* New post button */}

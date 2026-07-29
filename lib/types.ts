@@ -42,6 +42,7 @@ export interface DbPost {
   post_type: string;
   body: string;
   is_anonymous: boolean;
+  is_official: boolean;
   created_at: string;
   profiles?: DbProfile | null;
 }
