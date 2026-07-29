@@ -2,7 +2,7 @@
 # Add Sprout Team broadcast posts
 
 1. New Columns
-- `posts.is_official` (boolean, default false) — marks a post as an official
+- posts.is_official (boolean, default false) — marks a post as an official
   Sprout Team announcement that bypasses the 10-mile radius filter and is
   visible to all users regardless of location.
 
@@ -13,7 +13,7 @@
   is created.
 
 3. Security (RLS)
-- Replaces the existing INSERT and UPDATE policies on `posts` so that:
+- Replaces the existing INSERT and UPDATE policies on posts so that:
   - INSERT: only the admin user (4848415f-...) can set is_official = true.
     All other authenticated users can insert posts but only with is_official = false.
   - UPDATE: same restriction — only the admin user can create or change rows
