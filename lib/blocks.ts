@@ -10,24 +10,16 @@ export interface BlockedUser {
 }
 
 export async function fetchBlockedUsers(): Promise<BlockedUser[]> {
-  const { data, error } = await supabase
-    .from('blocks')
-    .select(`
-      id,
-      blocked_id,
-      created_at,
-      profiles:blocked_id (first_name, last_initial, avatar_url)
-    `)
-    .order('created_at', { ascending: false });
+  const { data, error } = await supabase.rpc('get_blocked_users');
 
   if (error || !data) return [];
 
   return (data as any[]).map((row) => ({
-    blockId: row.id,
-    userId: row.blocked_id,
-    first_name: row.profiles?.first_name ?? null,
-    last_initial: row.profiles?.last_initial ?? null,
-    avatar_url: row.profiles?.avatar_url ?? null,
+    blockId: row.block_id,
+    userId: row.user_id,
+    first_name: row.first_name ?? null,
+    last_initial: row.last_initial ?? null,
+    avatar_url: row.avatar_url ?? null,
     created_at: row.created_at,
   }));
 }
