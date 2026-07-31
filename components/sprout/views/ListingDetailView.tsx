@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, MapPin, Heart, MessageCircle, Share2, CheckCircle, Trash2, Car, Moon, Tag, Gamepad2, Package, Utensils, Home, BookOpen, Box, ShoppingBag, Pencil, X, ImagePlus, Loader2 } from 'lucide-react';
+import { ArrowLeft, MapPin, Heart, MessageCircle, Share2, CheckCircle, Trash2, Car, Moon, Tag, Gamepad2, Package, Utensils, Home, BookOpen, Box, ShoppingBag, Pencil, X, ImagePlus, Loader2, Send } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import type { DbListing, DbProfile } from '@/lib/types';
@@ -38,6 +38,8 @@ interface ListingDetailViewProps {
 
 type FullListing = DbListing & { profiles: DbProfile | null };
 
+type ConnectionStatus = 'loading' | 'connected' | 'not_connected';
+
 export default function ListingDetailView({ listingId, onBack, onMessage }: ListingDetailViewProps) {
   const { user } = useAuth();
   const [listing, setListing] = useState<FullListing | null>(null);
@@ -47,6 +49,14 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
   const [saved, setSaved] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('loading');
+
+  // Composer for non-connected users
+  const [showComposer, setShowComposer] = useState(false);
+  const [composerText, setComposerText] = useState('');
+  const [composerSending, setComposerSending] = useState(false);
+  const [composerSent, setComposerSent] = useState(false);
+  const [composerError, setComposerError] = useState('');
 
   const [showEdit, setShowEdit] = useState(false);
   const [editForm, setEditForm] = useState({ title: '', description: '', price: '', free: false, condition: 'good', category: 'Toys' });
@@ -76,6 +86,19 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
         setPrimaryImageUrl(imageRes.data?.url ?? '');
         setPrimaryImageId(imageRes.data?.id ?? null);
         setSaved(!!saveRes.data);
+
+        // Check connection status if logged in and not the owner
+        if (user && user.id !== data.seller_id) {
+          const { data: connRow } = await supabase
+            .from('match_requests')
+            .select('id')
+            .or(`and(from_user_id.eq.${user.id},to_user_id.eq.${data.seller_id}),and(from_user_id.eq.${data.seller_id},to_user_id.eq.${user.id})`)
+            .eq('status', 'connected')
+            .maybeSingle();
+          setConnectionStatus(connRow ? 'connected' : 'not_connected');
+        } else {
+          setConnectionStatus('connected'); // owner or no user — irrelevant
+        }
       }
       setLoading(false);
     }
@@ -137,7 +160,6 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
     setEditSubmitting(true);
     setEditError('');
 
-    // Upload new image if provided
     let newImageUrl = '';
     if (editImageFile) {
       try { newImageUrl = await uploadEditImage(editImageFile); }
@@ -179,6 +201,104 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
     }
   }
 
+  // Send a message request (pending conversation) from a non-connected user
+  async function handleSendRequest() {
+    if (!user || !listing || !composerText.trim()) return;
+    setComposerSending(true);
+    setComposerError('');
+
+    const sellerId = listing.seller_id;
+    const u1 = user.id < sellerId ? user.id : sellerId;
+    const u2 = user.id < sellerId ? sellerId : user.id;
+
+    // Check for existing conversation
+    const { data: existing } = await supabase
+      .from('conversations')
+      .select('id, conv_status')
+      .eq('user1_id', u1)
+      .eq('user2_id', u2)
+      .maybeSingle();
+
+    let convId: string;
+
+    if (existing) {
+      convId = existing.id;
+      // If already accepted, just hand off to normal message flow
+      if (existing.conv_status === 'accepted') {
+        setComposerSending(false);
+        setShowComposer(false);
+        onMessage(sellerId, {
+          id: listing.id,
+          title: listing.title,
+          price: listing.price_pence / 100,
+          condition: listing.condition,
+          category: listing.category,
+          image_url: primaryImageUrl,
+        });
+        return;
+      }
+      // Pending already — just go to messages
+      if (existing.conv_status === 'pending') {
+        setComposerSending(false);
+        setShowComposer(false);
+        onMessage(sellerId, {
+          id: listing.id,
+          title: listing.title,
+          price: listing.price_pence / 100,
+          condition: listing.condition,
+          category: listing.category,
+          image_url: primaryImageUrl,
+        });
+        return;
+      }
+    } else {
+      // Create a pending conversation
+      const { data: conv, error: convErr } = await supabase
+        .from('conversations')
+        .insert({
+          user1_id: u1,
+          user2_id: u2,
+          about: listing.title,
+          listing_id: listing.id,
+          conv_status: 'pending',
+          initiated_by: user.id,
+          source_type: 'listing',
+          source_listing_id: listing.id,
+        })
+        .select()
+        .maybeSingle();
+
+      if (convErr || !conv) {
+        setComposerError('Could not start conversation. Please try again.');
+        setComposerSending(false);
+        return;
+      }
+      convId = conv.id;
+    }
+
+    // Insert the one introductory message
+    const { error: msgErr } = await supabase.from('messages').insert({
+      conversation_id: convId,
+      sender_id: user.id,
+      body: composerText.trim(),
+    });
+
+    if (msgErr) {
+      setComposerError('Could not send message. Please try again.');
+      setComposerSending(false);
+      return;
+    }
+
+    // Update last_message preview
+    await supabase.from('conversations').update({
+      last_message: composerText.trim(),
+      last_message_at: new Date().toISOString(),
+    }).eq('id', convId);
+
+    setComposerSending(false);
+    setComposerSent(true);
+  }
+
   if (loading) {
     return (
       <div className="max-w-2xl mx-auto pb-32 lg:pb-8 animate-pulse">
@@ -213,6 +333,7 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
   const sellerAvatar = seller?.avatar_url || '';
   const catStyle = getCategoryStyle(listing.category);
   const CategoryIcon = CATEGORY_ICONS[listing.category] ?? ShoppingBag;
+  const isConnected = connectionStatus === 'connected';
 
   return (
     <div className="max-w-2xl mx-auto pb-32 lg:pb-8">
@@ -358,8 +479,8 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
         )}
       </div>
 
-      {/* CTA bar — only for non-owners on active listings */}
-      {!isOwner && !isSold && (
+      {/* CTA bar — connected user (normal flow) */}
+      {!isOwner && !isSold && isConnected && (
         <div
           className="fixed bottom-0 left-0 right-0 lg:static px-4 py-4 flex gap-3 border-t lg:border-0 lg:px-4"
           style={{ background: 'var(--bg)', borderColor: 'var(--border-color)' }}
@@ -386,6 +507,27 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
         </div>
       )}
 
+      {/* CTA bar — NOT connected user (sends a message request) */}
+      {!isOwner && !isSold && !isConnected && connectionStatus !== 'loading' && (
+        <div
+          className="fixed bottom-0 left-0 right-0 lg:static px-4 py-4 flex gap-3 border-t lg:border-0 lg:px-4"
+          style={{ background: 'var(--bg)', borderColor: 'var(--border-color)' }}
+        >
+          <button
+            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border font-semibold text-sm"
+            style={{ borderColor: 'var(--brand)', color: 'var(--brand)', background: 'var(--brand-light)' }}
+          >
+            <Share2 className="w-4 h-4" /> Share
+          </button>
+          <button
+            onClick={() => { setShowComposer(true); setComposerSent(false); setComposerText(''); setComposerError(''); }}
+            className="btn-brand flex-1 text-sm gap-2"
+          >
+            <MessageCircle className="w-4 h-4" /> Message Seller
+          </button>
+        </div>
+      )}
+
       {/* Sold state CTA */}
       {!isOwner && isSold && (
         <div
@@ -394,6 +536,89 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
         >
           <div className="flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm" style={{ background: '#f3f4f6', color: '#6b7280' }}>
             <CheckCircle className="w-4 h-4" /> This item has been sold
+          </div>
+        </div>
+      )}
+
+      {/* Message request composer modal */}
+      {showComposer && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" style={{ background: 'rgba(42,31,24,0.45)' }}>
+          <div className="w-full max-w-md rounded-2xl overflow-hidden shadow-2xl" style={{ background: 'white' }}>
+            <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--border-color)' }}>
+              <div>
+                <h2 className="text-base font-bold" style={{ color: '#2a1f18' }}>Message seller</h2>
+                <p className="text-xs mt-0.5" style={{ color: '#9a8070' }}>They&apos;ll need to accept before you can keep chatting</p>
+              </div>
+              <button onClick={() => setShowComposer(false)} className="transition-opacity hover:opacity-60">
+                <X className="w-5 h-5" style={{ color: '#9a8070' }} />
+              </button>
+            </div>
+
+            {composerSent ? (
+              <div className="p-6 text-center">
+                <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3" style={{ background: '#f0fdf4' }}>
+                  <CheckCircle className="w-6 h-6" style={{ color: '#16a34a' }} />
+                </div>
+                <h3 className="font-semibold text-base mb-1" style={{ color: '#2a1f18' }}>Message sent!</h3>
+                <p className="text-sm mb-5" style={{ color: '#9a8070' }}>
+                  They&apos;ll need to accept your message request before you can chat freely. You can see it in your Messages tab.
+                </p>
+                <button onClick={() => { setShowComposer(false); onMessage(listing.seller_id, {
+                  id: listing.id,
+                  title: listing.title,
+                  price: priceInPounds,
+                  condition: listing.condition,
+                  category: listing.category,
+                  image_url: primaryImageUrl,
+                }); }} className="btn-brand w-full text-sm">
+                  Go to Messages
+                </button>
+              </div>
+            ) : (
+              <div className="p-5 space-y-4">
+                {/* Listing preview */}
+                <div className="flex items-center gap-3 p-3 rounded-xl border" style={{ background: '#fffcf8', borderColor: 'var(--border-color)' }}>
+                  {hasRealImage ? (
+                    <img src={primaryImageUrl} alt={listing.title} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+                  ) : (
+                    <div className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: catStyle.bg }}>
+                      <CategoryIcon className="w-6 h-6" style={{ color: catStyle.color, opacity: 0.8 }} />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold truncate" style={{ color: '#2a1f18' }}>{listing.title}</p>
+                    <p className="text-xs" style={{ color: '#9a8070' }}>
+                      {priceInPounds === 0 ? 'Free' : `£${priceInPounds.toFixed(2)}`} · {listing.condition}
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wide block mb-1.5" style={{ color: '#7a6055' }}>Your message</label>
+                  <textarea
+                    autoFocus
+                    rows={4}
+                    className="w-full rounded-xl border px-3 py-2.5 text-sm resize-none focus:outline-none"
+                    style={{ borderColor: 'var(--border-color)', color: '#2a1f18' }}
+                    placeholder={`Hi! Is the "${listing.title}" still available?`}
+                    value={composerText}
+                    onChange={e => setComposerText(e.target.value)}
+                  />
+                  {composerError && <p className="text-xs mt-1" style={{ color: '#ef4444' }}>{composerError}</p>}
+                </div>
+
+                <button
+                  onClick={handleSendRequest}
+                  disabled={!composerText.trim() || composerSending}
+                  className="btn-brand w-full text-sm flex items-center justify-center gap-2"
+                  style={{ opacity: composerText.trim() && !composerSending ? 1 : 0.5 }}
+                >
+                  {composerSending
+                    ? <><Loader2 className="w-4 h-4 animate-spin" /> Sending…</>
+                    : <><Send className="w-4 h-4" /> Send message request</>}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -409,7 +634,6 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
             <form onSubmit={handleEditSubmit} className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
               {editError && <p className="text-sm text-red-500">{editError}</p>}
 
-              {/* Image */}
               <div>
                 <p className="text-xs font-semibold mb-2" style={{ color: '#7a6055' }}>Photo</p>
                 {(() => {
@@ -442,14 +666,12 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
                   }} />
               </div>
 
-              {/* Title */}
               <div>
                 <label className="text-xs font-semibold block mb-1" style={{ color: '#7a6055' }}>Title</label>
                 <input required className="w-full rounded-xl border px-3 py-2.5 text-sm" style={{ borderColor: 'var(--border-color)' }}
                   value={editForm.title} onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))} />
               </div>
 
-              {/* Category */}
               <div>
                 <label className="text-xs font-semibold block mb-1" style={{ color: '#7a6055' }}>Category</label>
                 <select className="w-full rounded-xl border px-3 py-2.5 text-sm" style={{ borderColor: 'var(--border-color)' }}
@@ -458,7 +680,6 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
                 </select>
               </div>
 
-              {/* Condition */}
               <div>
                 <label className="text-xs font-semibold block mb-1" style={{ color: '#7a6055' }}>Condition</label>
                 <div className="flex flex-wrap gap-2">
@@ -475,7 +696,6 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
                 </div>
               </div>
 
-              {/* Price */}
               <div>
                 <label className="text-xs font-semibold block mb-1" style={{ color: '#7a6055' }}>Price</label>
                 <div className="flex items-center gap-3 mb-2">
@@ -499,7 +719,6 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
                 )}
               </div>
 
-              {/* Description */}
               <div>
                 <label className="text-xs font-semibold block mb-1" style={{ color: '#7a6055' }}>Description</label>
                 <textarea rows={3} className="w-full rounded-xl border px-3 py-2.5 text-sm resize-none" style={{ borderColor: 'var(--border-color)' }}

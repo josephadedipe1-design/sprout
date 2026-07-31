@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Search, MoreHorizontal, ArrowLeft, Edit2, X, Users, ShoppingBag, Car, Moon, Tag, Gamepad2, Package, Utensils, Home, BookOpen, Box, Flag, Copy } from 'lucide-react';
+import { Send, Search, MoreHorizontal, ArrowLeft, Edit2, X, Users, ShoppingBag, Car, Moon, Tag, Gamepad2, Package, Utensils, Home, BookOpen, Box, Flag, Copy, Check, Ban, Inbox } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { sendNotificationEmail, truncatePreview } from '@/lib/notifications';
@@ -9,6 +9,7 @@ import type { DbMessage, DbProfile } from '@/lib/types';
 import type { ListingSnap } from './ListingDetailView';
 import { formatLocation, formatName, getCategoryStyle } from '@/lib/utils';
 import ReportModal, { type ReportTarget } from '@/components/sprout/ReportModal';
+import { blockUser } from '@/lib/blocks';
 
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
   Travel: Car, Sleep: Moon, Clothing: Tag, Toys: Gamepad2,
@@ -26,6 +27,10 @@ interface ConvDisplay {
   listing_id: string | null;
   listing: ListingSnap | null;
   last_message_at: string;
+  conv_status: 'pending' | 'accepted' | 'declined';
+  initiated_by: string | null;
+  source_type: string | null;
+  source_listing_id: string | null;
 }
 
 interface MsgDisplay {
@@ -118,12 +123,12 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
   const [connections, setConnections] = useState<DbProfile[]>([]);
   const [connSearch, setConnSearch] = useState('');
   const [readMap, setReadMap] = useState<Record<string, string>>({});
-
+  const [activeTab, setActiveTab] = useState<'messages' | 'requests'>('messages');
   const [conversationsLoaded, setConversationsLoaded] = useState(false);
   const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  const [actioning, setActioning] = useState<string | null>(null);
 
-  // Load read timestamps from localStorage on mount
   useEffect(() => {
     if (!user) return;
     const stored = localStorage.getItem(`sprout_conv_reads_${user.id}`);
@@ -182,6 +187,10 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
         listing_id: c.listing_id || null,
         listing: c.listing_id ? listingMap[c.listing_id] ?? null : null,
         last_message_at: c.last_message_at || '',
+        conv_status: c.conv_status ?? 'accepted',
+        initiated_by: c.initiated_by ?? null,
+        source_type: c.source_type ?? null,
+        source_listing_id: c.source_listing_id ?? null,
       };
     });
 
@@ -221,7 +230,7 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
     const u2 = user.id < otherProfile.id ? otherProfile.id : user.id;
     const { data } = await supabase
       .from('conversations')
-      .upsert({ user1_id: u1, user2_id: u2 }, { onConflict: 'user1_id,user2_id' })
+      .upsert({ user1_id: u1, user2_id: u2, conv_status: 'accepted' }, { onConflict: 'user1_id,user2_id' })
       .select()
       .maybeSingle();
     if (data) {
@@ -243,16 +252,17 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
           await loadConversations();
         }
         openConv(existing.id);
-        if (messageListing) setInput(`Hi! Is the "${messageListing.title}" still available?`);
+        if (messageListing && existing.conv_status === 'accepted') setInput(`Hi! Is the "${messageListing.title}" still available?`);
         onConversationOpened?.();
         return;
       }
+      // This path is for connected users opening a new convo from profile — status accepted
       const u1 = user.id < openWithUserId ? user.id : openWithUserId;
       const u2 = user.id < openWithUserId ? openWithUserId : user.id;
       const { data: upserted } = await supabase
         .from('conversations')
         .upsert(
-          { user1_id: u1, user2_id: u2, about: messageListing?.title ?? '', listing_id: messageListing?.id ?? null },
+          { user1_id: u1, user2_id: u2, about: messageListing?.title ?? '', listing_id: messageListing?.id ?? null, conv_status: 'accepted' },
           { onConflict: 'user1_id,user2_id' }
         )
         .select()
@@ -303,12 +313,7 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
     const text = input.trim();
     setInput('');
 
-    const optimistic: MsgDisplay = {
-      id: `tmp-${Date.now()}`,
-      from: 'me',
-      text,
-      time: 'just now',
-    };
+    const optimistic: MsgDisplay = { id: `tmp-${Date.now()}`, from: 'me', text, time: 'just now' };
     setMessages(prev => [...prev, optimistic]);
 
     const { data: inserted } = await supabase.from('messages').insert({
@@ -317,7 +322,6 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
       body: text,
     }).select().maybeSingle();
 
-    // Update time on the optimistic message if realtime hasn't fired yet
     if (inserted) {
       setMessages(prev => prev.map(m =>
         m.id === optimistic.id ? { ...m, id: inserted.id, time: formatMsgTime(inserted.created_at) } : m
@@ -330,7 +334,6 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
     }).eq('id', activeId);
 
     markRead(activeId);
-
     await loadConversations();
 
     const conv = conversations.find(c => c.id === activeId);
@@ -341,16 +344,35 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
       sendNotificationEmail({
         type: 'message',
         recipientUserId: conv.otherUserId,
-        emailData: {
-          actorUserId: user.id,
-          senderName,
-          preview: truncatePreview(text),
-        },
+        emailData: { actorUserId: user.id, senderName, preview: truncatePreview(text) },
       });
     }
   }
 
-  // Realtime subscription for incoming messages
+  async function acceptRequest(convId: string) {
+    setActioning(convId);
+    await supabase.from('conversations').update({ conv_status: 'accepted' }).eq('id', convId);
+    await loadConversations();
+    setActioning(null);
+    openConv(convId);
+    setActiveTab('messages');
+  }
+
+  async function declineRequest(convId: string) {
+    setActioning(convId);
+    await supabase.from('conversations').update({ conv_status: 'declined' }).eq('id', convId);
+    await loadConversations();
+    setActioning(null);
+  }
+
+  async function blockAndDecline(conv: ConvDisplay) {
+    setActioning(conv.id);
+    await blockUser(conv.otherUserId);
+    await supabase.from('conversations').update({ conv_status: 'declined' }).eq('id', conv.id);
+    await loadConversations();
+    setActioning(null);
+  }
+
   const activeIdRef = useRef<string | null>(null);
   activeIdRef.current = activeId;
 
@@ -358,53 +380,56 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
     if (!user) return;
     const channel = supabase
       .channel('messages-realtime')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages' },
-        (payload) => {
-          const msg = payload.new as DbMessage;
-          if (msg.conversation_id === activeIdRef.current) {
-            const display: MsgDisplay = {
-              id: msg.id,
-              from: msg.sender_id === user.id ? 'me' : 'them',
-              text: msg.body,
-              time: formatMsgTime(msg.created_at),
-            };
-            setMessages(prev => {
-              // Replace optimistic message if it matches content + sender, else append
-              const optimisticIdx = prev.findIndex(
-                m => m.id.startsWith('tmp-') && m.text === msg.body && m.from === display.from
-              );
-              if (optimisticIdx !== -1) {
-                const next = [...prev];
-                next[optimisticIdx] = display;
-                return next;
-              }
-              // Avoid duplicates
-              if (prev.some(m => m.id === msg.id)) return prev;
-              return [...prev, display];
-            });
-            if (msg.sender_id !== user.id) {
-              markRead(msg.conversation_id);
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+        const msg = payload.new as DbMessage;
+        if (msg.conversation_id === activeIdRef.current) {
+          const display: MsgDisplay = {
+            id: msg.id,
+            from: msg.sender_id === user.id ? 'me' : 'them',
+            text: msg.body,
+            time: formatMsgTime(msg.created_at),
+          };
+          setMessages(prev => {
+            const optimisticIdx = prev.findIndex(
+              m => m.id.startsWith('tmp-') && m.text === msg.body && m.from === display.from
+            );
+            if (optimisticIdx !== -1) {
+              const next = [...prev];
+              next[optimisticIdx] = display;
+              return next;
             }
-          }
-          // Refresh conversation list to update last message preview
-          loadConversations();
+            if (prev.some(m => m.id === msg.id)) return prev;
+            return [...prev, display];
+          });
+          if (msg.sender_id !== user.id) markRead(msg.conversation_id);
         }
-      )
+        loadConversations();
+      })
       .subscribe();
-
     return () => { supabase.removeChannel(channel); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const activeConv = conversations.find(c => c.id === activeId);
-  const filteredConversations = searchQuery.trim()
-    ? conversations.filter(c =>
+
+  // Split into accepted and pending-requests-for-me
+  const acceptedConvs = conversations.filter(c => c.conv_status === 'accepted');
+  const pendingRequests = conversations.filter(
+    c => c.conv_status === 'pending' && c.initiated_by !== user?.id
+  );
+  const pendingSent = conversations.filter(
+    c => c.conv_status === 'pending' && c.initiated_by === user?.id
+  );
+
+  const filteredAccepted = searchQuery.trim()
+    ? acceptedConvs.filter(c =>
         c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         c.lastMsg.toLowerCase().includes(searchQuery.toLowerCase())
       )
-    : conversations;
+    : acceptedConvs;
+
+  const isPendingActive = activeConv?.conv_status === 'pending';
+  const iAmInitiator = activeConv?.initiated_by === user?.id;
 
   return (
     <div className="flex h-[calc(100vh-0px)] lg:h-[calc(100vh-0px)] overflow-hidden" style={{ maxHeight: 'calc(100dvh - 0px)' }}>
@@ -425,69 +450,227 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
               <Edit2 className="w-4 h-4" style={{ color: 'var(--brand)' }} />
             </button>
           </div>
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: '#c4a090' }} />
-            <input
-              className="input-sprout pl-9 text-sm"
-              placeholder="Search conversations…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+
+          {/* Tab switcher */}
+          <div className="flex rounded-xl overflow-hidden border mb-3" style={{ borderColor: 'var(--border-color)' }}>
+            <button
+              onClick={() => setActiveTab('messages')}
+              className="flex-1 py-2 text-sm font-semibold transition-colors"
+              style={{
+                background: activeTab === 'messages' ? 'var(--brand)' : 'transparent',
+                color: activeTab === 'messages' ? 'white' : '#7a6055',
+              }}
+            >
+              Messages
+            </button>
+            <button
+              onClick={() => setActiveTab('requests')}
+              className="flex-1 py-2 text-sm font-semibold transition-colors relative"
+              style={{
+                background: activeTab === 'requests' ? 'var(--brand)' : 'transparent',
+                color: activeTab === 'requests' ? 'white' : '#7a6055',
+              }}
+            >
+              Requests
+              {pendingRequests.length > 0 && (
+                <span
+                  className="absolute top-1 right-3 w-5 h-5 rounded-full text-xs flex items-center justify-center font-bold text-white"
+                  style={{ background: '#E53E3E', fontSize: 10 }}
+                >
+                  {pendingRequests.length}
+                </span>
+              )}
+            </button>
           </div>
+
+          {activeTab === 'messages' && (
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: '#c4a090' }} />
+              <input
+                className="input-sprout pl-9 text-sm"
+                placeholder="Search conversations…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+          )}
         </div>
+
         <div className="flex-1 overflow-y-auto">
-          {conversations.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-              <div className="w-14 h-14 rounded-full flex items-center justify-center mb-3" style={{ background: 'var(--brand-light)' }}>
-                <Send className="w-6 h-6" style={{ color: 'var(--brand)' }} />
-              </div>
-              <p className="text-sm font-semibold mb-1" style={{ color: '#2a1f18' }}>No conversations yet</p>
-              <p className="text-sm" style={{ color: '#9a8070' }}>Connect with a parent to start messaging</p>
-            </div>
-          ) : filteredConversations.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-              <Search className="w-8 h-8 mb-3" style={{ color: '#c4a090' }} />
-              <p className="text-sm font-semibold" style={{ color: '#2a1f18' }}>No results</p>
-              <p className="text-sm mt-1" style={{ color: '#9a8070' }}>No conversations match &ldquo;{searchQuery}&rdquo;</p>
-            </div>
-          ) : (
-            filteredConversations.map((c) => {
-              const isUnread = c.last_message_at && (readMap[c.id] ?? '') < c.last_message_at && c.id !== activeId;
-              return (
-              <button
-                key={c.id}
-                onClick={() => openConv(c.id)}
-                className="w-full flex items-start gap-3 p-4 text-left transition-colors hover:bg-orange-50 border-b"
-                style={{
-                  borderColor: 'var(--border-color)',
-                  background: activeId === c.id ? 'var(--brand-light)' : 'transparent',
-                }}
-              >
-                <div className="relative flex-shrink-0">
-                  {c.avatar ? (
-                    <img src={c.avatar} alt={c.name} className="w-12 h-12 rounded-full object-cover" />
-                  ) : (
-                    <div className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold text-white" style={{ background: 'var(--brand)' }}>
-                      {c.name.charAt(0)}
-                    </div>
-                  )}
-                  {isUnread && (
-                    <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white" style={{ background: '#E53E3E' }} />
-                  )}
+          {/* ── MESSAGES TAB ── */}
+          {activeTab === 'messages' && (
+            <>
+              {/* Sent pending requests */}
+              {pendingSent.length > 0 && (
+                <div>
+                  <p className="px-4 pt-3 pb-1 text-xs font-semibold uppercase tracking-wide" style={{ color: '#b8a090' }}>Awaiting response</p>
+                  {pendingSent.map(c => (
+                    <button
+                      key={c.id}
+                      onClick={() => openConv(c.id)}
+                      className="w-full flex items-start gap-3 p-4 text-left transition-colors hover:bg-orange-50 border-b"
+                      style={{ borderColor: 'var(--border-color)', background: activeId === c.id ? 'var(--brand-light)' : 'transparent' }}
+                    >
+                      <div className="relative flex-shrink-0">
+                        {c.avatar ? (
+                          <img src={c.avatar} alt={c.name} className="w-12 h-12 rounded-full object-cover opacity-70" />
+                        ) : (
+                          <div className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold text-white opacity-70" style={{ background: 'var(--brand)' }}>
+                            {c.name.charAt(0)}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <p className="text-sm font-semibold" style={{ color: '#2a1f18' }}>{c.name}</p>
+                          <span className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: '#FEF3C7', color: '#92400E' }}>Pending</span>
+                        </div>
+                        {c.about && <p className="text-xs font-medium mb-0.5" style={{ color: 'var(--brand)' }}>Re: {c.about}</p>}
+                        <p className="text-xs truncate" style={{ color: '#9a8070' }}>{c.lastMsg}</p>
+                      </div>
+                    </button>
+                  ))}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-0.5">
-                    <p className={`text-sm ${isUnread ? 'font-bold' : 'font-semibold'}`} style={{ color: '#2a1f18' }}>{c.name}</p>
-                    <span className="text-xs" style={{ color: isUnread ? '#E53E3E' : '#9a8070', fontWeight: isUnread ? 600 : 400 }}>{c.time}</span>
+              )}
+
+              {acceptedConvs.length > 0 && pendingSent.length > 0 && (
+                <p className="px-4 pt-3 pb-1 text-xs font-semibold uppercase tracking-wide" style={{ color: '#b8a090' }}>Conversations</p>
+              )}
+
+              {acceptedConvs.length === 0 && pendingSent.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+                  <div className="w-14 h-14 rounded-full flex items-center justify-center mb-3" style={{ background: 'var(--brand-light)' }}>
+                    <Send className="w-6 h-6" style={{ color: 'var(--brand)' }} />
                   </div>
-                  {c.about && (
-                    <p className="text-xs font-medium mb-0.5" style={{ color: 'var(--brand)' }}>Re: {c.about}</p>
-                  )}
-                  <p className="text-xs truncate" style={{ color: isUnread ? '#3a2820' : '#9a8070', fontWeight: isUnread ? 600 : 400 }}>{c.lastMsg}</p>
+                  <p className="text-sm font-semibold mb-1" style={{ color: '#2a1f18' }}>No conversations yet</p>
+                  <p className="text-sm" style={{ color: '#9a8070' }}>Connect with a parent to start messaging</p>
                 </div>
-              </button>
-              );
-            })
+              ) : filteredAccepted.length === 0 && searchQuery ? (
+                <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+                  <Search className="w-8 h-8 mb-3" style={{ color: '#c4a090' }} />
+                  <p className="text-sm font-semibold" style={{ color: '#2a1f18' }}>No results</p>
+                  <p className="text-sm mt-1" style={{ color: '#9a8070' }}>No conversations match &ldquo;{searchQuery}&rdquo;</p>
+                </div>
+              ) : (
+                filteredAccepted.map((c) => {
+                  const isUnread = c.last_message_at && (readMap[c.id] ?? '') < c.last_message_at && c.id !== activeId;
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => openConv(c.id)}
+                      className="w-full flex items-start gap-3 p-4 text-left transition-colors hover:bg-orange-50 border-b"
+                      style={{
+                        borderColor: 'var(--border-color)',
+                        background: activeId === c.id ? 'var(--brand-light)' : 'transparent',
+                      }}
+                    >
+                      <div className="relative flex-shrink-0">
+                        {c.avatar ? (
+                          <img src={c.avatar} alt={c.name} className="w-12 h-12 rounded-full object-cover" />
+                        ) : (
+                          <div className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold text-white" style={{ background: 'var(--brand)' }}>
+                            {c.name.charAt(0)}
+                          </div>
+                        )}
+                        {isUnread && (
+                          <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white" style={{ background: '#E53E3E' }} />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-0.5">
+                          <p className={`text-sm ${isUnread ? 'font-bold' : 'font-semibold'}`} style={{ color: '#2a1f18' }}>{c.name}</p>
+                          <span className="text-xs" style={{ color: isUnread ? '#E53E3E' : '#9a8070', fontWeight: isUnread ? 600 : 400 }}>{c.time}</span>
+                        </div>
+                        {c.about && (
+                          <p className="text-xs font-medium mb-0.5" style={{ color: 'var(--brand)' }}>Re: {c.about}</p>
+                        )}
+                        <p className="text-xs truncate" style={{ color: isUnread ? '#3a2820' : '#9a8070', fontWeight: isUnread ? 600 : 400 }}>{c.lastMsg}</p>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </>
+          )}
+
+          {/* ── REQUESTS TAB ── */}
+          {activeTab === 'requests' && (
+            <>
+              {pendingRequests.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+                  <div className="w-14 h-14 rounded-full flex items-center justify-center mb-3" style={{ background: 'var(--brand-light)' }}>
+                    <Inbox className="w-6 h-6" style={{ color: 'var(--brand)' }} />
+                  </div>
+                  <p className="text-sm font-semibold mb-1" style={{ color: '#2a1f18' }}>No message requests</p>
+                  <p className="text-sm" style={{ color: '#9a8070' }}>When someone messages you about a listing, it'll appear here</p>
+                </div>
+              ) : (
+                <div className="p-3 space-y-3">
+                  {pendingRequests.map(c => (
+                    <div key={c.id} className="card-sprout p-4 space-y-3">
+                      {/* Sender info */}
+                      <div className="flex items-center gap-3">
+                        {c.avatar ? (
+                          <img src={c.avatar} alt={c.name} className="w-11 h-11 rounded-full object-cover flex-shrink-0" />
+                        ) : (
+                          <div className="w-11 h-11 rounded-full flex items-center justify-center font-bold text-white flex-shrink-0" style={{ background: 'var(--brand)' }}>
+                            {c.name.charAt(0)}
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold" style={{ color: '#2a1f18' }}>{c.name}</p>
+                          {c.time && <p className="text-xs" style={{ color: '#9a8070' }}>{c.time}</p>}
+                        </div>
+                      </div>
+
+                      {/* Listing context */}
+                      {c.listing && (
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: '#fffcf8', border: '1px solid var(--border-color)' }}>
+                          <ShoppingBag className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#9a8070' }} />
+                          <p className="text-xs truncate" style={{ color: '#5a4035' }}>
+                            Re: <span className="font-semibold">{c.listing.title}</span>
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Message preview */}
+                      <div className="px-3 py-2.5 rounded-xl" style={{ background: '#f8f6f3' }}>
+                        <p className="text-sm" style={{ color: '#3a2820', lineHeight: 1.55 }}>{c.lastMsg}</p>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => acceptRequest(c.id)}
+                          disabled={actioning === c.id}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
+                          style={{ background: '#059669', color: 'white' }}
+                        >
+                          <Check className="w-4 h-4" /> Accept
+                        </button>
+                        <button
+                          onClick={() => declineRequest(c.id)}
+                          disabled={actioning === c.id}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-semibold border transition-opacity hover:opacity-80"
+                          style={{ borderColor: 'var(--border-color)', color: '#7a6055', background: 'white' }}
+                        >
+                          <X className="w-4 h-4" /> Decline
+                        </button>
+                        <button
+                          onClick={() => blockAndDecline(c)}
+                          disabled={actioning === c.id}
+                          className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold border transition-opacity hover:opacity-80"
+                          style={{ borderColor: '#FECACA', color: '#DC2626', background: '#FEF2F2' }}
+                          title="Block this user and decline"
+                        >
+                          <Ban className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -511,8 +694,29 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
                 <p className="font-semibold" style={{ color: '#2a1f18' }}>{activeConv.name}</p>
                 {activeConv.about && <p className="text-xs" style={{ color: 'var(--brand)' }}>Re: {activeConv.about}</p>}
               </div>
+              {isPendingActive && (
+                <span className="text-xs px-2 py-1 rounded-full font-medium" style={{ background: '#FEF3C7', color: '#92400E' }}>
+                  {iAmInitiator ? 'Pending' : 'Request'}
+                </span>
+              )}
               <button style={{ color: '#c4a090' }}><MoreHorizontal className="w-5 h-5" /></button>
             </div>
+
+            {/* Pending banner for initiator */}
+            {isPendingActive && iAmInitiator && (
+              <div className="px-4 py-3 text-sm text-center" style={{ background: '#FEF9C3', color: '#78350F', borderBottom: '1px solid #FDE68A' }}>
+                Your message has been sent. They&apos;ll need to accept before you can keep chatting.
+              </div>
+            )}
+
+            {/* Pending banner for recipient — quick accept/decline */}
+            {isPendingActive && !iAmInitiator && (
+              <div className="px-4 py-3 flex items-center gap-3" style={{ background: '#F0FDF4', borderBottom: '1px solid #BBF7D0' }}>
+                <p className="text-sm flex-1" style={{ color: '#15803D' }}>Accept this message request to reply</p>
+                <button onClick={() => acceptRequest(activeConv.id)} className="text-xs font-bold px-3 py-1.5 rounded-lg" style={{ background: '#059669', color: 'white' }}>Accept</button>
+                <button onClick={() => { declineRequest(activeConv.id); setMobileShowChat(false); setActiveId(null); }} className="text-xs font-bold px-3 py-1.5 rounded-lg border" style={{ borderColor: 'var(--border-color)', color: '#7a6055' }}>Decline</button>
+              </div>
+            )}
 
             <div className="flex-1 overflow-y-auto px-4 py-5 space-y-3" style={{ paddingBottom: '72px' }}>
               {loadingMsgs && (
@@ -577,30 +781,33 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
               <div ref={bottomRef} />
             </div>
 
-            <div className="fixed bottom-0 left-0 right-0 lg:static border-t" style={{ background: 'white', borderColor: 'var(--border-color)' }}>
-              {activeConv?.listing && (
-                <div className="px-3 pt-2.5 pb-0 flex items-center gap-2.5 border-b" style={{ borderColor: 'var(--border-color)' }}>
-                  <ListingCard listing={activeConv.listing} compact />
+            {/* Input bar — only shown for accepted convs, or for pending recipient after accept */}
+            {activeConv.conv_status === 'accepted' && (
+              <div className="fixed bottom-0 left-0 right-0 lg:static border-t" style={{ background: 'white', borderColor: 'var(--border-color)' }}>
+                {activeConv?.listing && (
+                  <div className="px-3 pt-2.5 pb-0 flex items-center gap-2.5 border-b" style={{ borderColor: 'var(--border-color)' }}>
+                    <ListingCard listing={activeConv.listing} compact />
+                  </div>
+                )}
+                <div className="flex items-center gap-2 max-w-3xl mx-auto p-3">
+                  <input
+                    className="input-sprout flex-1 text-sm"
+                    placeholder="Message…"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && send()}
+                  />
+                  <button
+                    onClick={send}
+                    disabled={!input.trim()}
+                    className="w-9 h-9 rounded-full flex items-center justify-center transition-opacity"
+                    style={{ background: 'var(--brand)', opacity: input.trim() ? 1 : 0.4 }}
+                  >
+                    <Send className="w-4 h-4 text-white" />
+                  </button>
                 </div>
-              )}
-              <div className="flex items-center gap-2 max-w-3xl mx-auto p-3">
-                <input
-                  className="input-sprout flex-1 text-sm"
-                  placeholder="Message…"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && send()}
-                />
-                <button
-                  onClick={send}
-                  disabled={!input.trim()}
-                  className="w-9 h-9 rounded-full flex items-center justify-center transition-opacity"
-                  style={{ background: 'var(--brand)', opacity: input.trim() ? 1 : 0.4 }}
-                >
-                  <Send className="w-4 h-4 text-white" />
-                </button>
               </div>
-            </div>
+            )}
           </>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center" style={{ color: '#c4a090' }}>
