@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, MapPin, Leaf, Copy, Check as CheckIcon, ShoppingBag, Tag, Car, Moon, Gamepad2, Package, Utensils, Home, BookOpen, Box, Trash2, Loader2, Send } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, MapPin, Leaf, Copy, Check as CheckIcon, ShoppingBag, Tag, Car, Moon, Gamepad2, Package, Utensils, Home, BookOpen, Box, Trash2, Loader2, Send, Flag } from 'lucide-react';
 import { renderAnnouncementMarkdown } from '@/lib/announcement-markdown';
 // Share2 kept for the first-in-area invite card only
 import { supabase } from '@/lib/supabase';
@@ -9,6 +9,7 @@ import { useAuth } from '@/context/AuthContext';
 import { sendNotificationEmail, truncatePreview } from '@/lib/notifications';
 import type { DbProfile, DbListing } from '@/lib/types';
 import { getCategoryStyle, formatLocation, formatName, haversineKm, kmToMiles } from '@/lib/utils';
+import ReportModal, { type ReportTarget } from '@/components/sprout/ReportModal';
 
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
   Travel: Car, Sleep: Moon, Clothing: Tag, Toys: Gamepad2,
@@ -102,6 +103,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
   const [repliesLoadingMap, setRepliesLoadingMap] = useState<Record<string, boolean>>({});
   const [replyTextMap, setReplyTextMap] = useState<Record<string, string>>({});
   const [replySubmittingMap, setReplySubmittingMap] = useState<Record<string, boolean>>({});
+  const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
 
   const isNewUser = !!(
     profile?.created_at &&
@@ -666,20 +668,20 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
                       ) : (
                         <span className="tag-sprout" style={{ background: typeInfo.bg, color: typeInfo.text }}>{typeInfo.label}</span>
                       )}
-                      {post.author_id === user?.id && (
-                        <div className="relative" onClick={e => e.stopPropagation()}>
-                          <button
-                            onClick={() => setMenuPostId(menuPostId === post.id ? null : post.id)}
-                            className="w-7 h-7 rounded-full flex items-center justify-center transition-colors hover:bg-orange-50"
-                            style={{ color: '#c4a090' }}
+                      <div className="relative" onClick={e => e.stopPropagation()}>
+                        <button
+                          onClick={() => setMenuPostId(menuPostId === post.id ? null : post.id)}
+                          className="w-7 h-7 rounded-full flex items-center justify-center transition-colors hover:bg-orange-50"
+                          style={{ color: '#c4a090' }}
+                        >
+                          <MoreHorizontal className="w-4 h-4" />
+                        </button>
+                        {menuPostId === post.id && (
+                          <div
+                            className="absolute right-0 top-8 z-20 rounded-xl shadow-lg border overflow-hidden"
+                            style={{ background: 'white', borderColor: 'var(--border-color)', minWidth: 140 }}
                           >
-                            <MoreHorizontal className="w-4 h-4" />
-                          </button>
-                          {menuPostId === post.id && (
-                            <div
-                              className="absolute right-0 top-8 z-20 rounded-xl shadow-lg border overflow-hidden"
-                              style={{ background: 'white', borderColor: 'var(--border-color)', minWidth: 140 }}
-                            >
+                            {post.author_id === user?.id ? (
                               <button
                                 onClick={() => deletePost(post.id)}
                                 className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-left transition-colors hover:bg-red-50"
@@ -688,10 +690,19 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
                                 <Trash2 className="w-3.5 h-3.5" />
                                 Delete post
                               </button>
-                            </div>
-                          )}
-                        </div>
-                      )}
+                            ) : (
+                              <button
+                                onClick={() => { setReportTarget({ type: 'post', postId: post.id, userId: post.author_id }); setMenuPostId(null); }}
+                                className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-left transition-colors hover:bg-orange-50"
+                                style={{ color: '#7a6055' }}
+                              >
+                                <Flag className="w-3.5 h-3.5" />
+                                Report post
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -858,6 +869,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
           </div>
         </article>
       )}
+      <ReportModal target={reportTarget} open={!!reportTarget} onClose={() => setReportTarget(null)} />
     </div>
   );
 }

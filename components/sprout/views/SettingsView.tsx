@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, Bell, Lock, Shield, Moon, Trash2, LogOut, ChevronRight, Eye, Globe, MessageCircle, X, CheckCircle, Loader2 } from 'lucide-react';
+import { ArrowLeft, Bell, Lock, Shield, Moon, Trash2, LogOut, ChevronRight, Eye, Globe, MessageCircle, X, CheckCircle, Loader2, Ban } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { fetchBlockedUsers, unblockUser, type BlockedUser } from '@/lib/blocks';
 
 interface SettingsViewProps {
   onBack: () => void;
@@ -122,6 +123,31 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
   }
 
   const [comingSoon, setComingSoon] = useState('');
+  const [showBlocked, setShowBlocked] = useState(false);
+  const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
+  const [blockedLoading, setBlockedLoading] = useState(false);
+  const [unblockingId, setUnblockingId] = useState<string | null>(null);
+
+  async function loadBlockedUsers() {
+    setBlockedLoading(true);
+    const list = await fetchBlockedUsers();
+    setBlockedUsers(list);
+    setBlockedLoading(false);
+  }
+
+  async function handleUnblock(blockId: string) {
+    setUnblockingId(blockId);
+    const ok = await unblockUser(blockId);
+    setUnblockingId(null);
+    if (ok) {
+      setBlockedUsers((prev) => prev.filter((u) => u.blockId !== blockId));
+    }
+  }
+
+  function openBlocked() {
+    setShowBlocked(true);
+    loadBlockedUsers();
+  }
 
   function showComingSoon(label: string) {
     setComingSoon(label);
@@ -203,12 +229,12 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
               <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: '#c4a090' }} />
             </button>
             {[
-              { Icon: MessageCircle, label: 'Blocked users', sub: 'Manage who you\'ve blocked' },
-              { Icon: Globe, label: 'Language', sub: 'English (UK)' },
-            ].map(({ Icon, label, sub }) => (
+              { Icon: Ban, label: 'Blocked users', sub: 'Manage who you\'ve blocked', action: 'blocked' },
+              { Icon: Globe, label: 'Language', sub: 'English (UK)', action: 'comingSoon' },
+            ].map(({ Icon, label, sub, action }) => (
               <button
                 key={label}
-                onClick={() => showComingSoon(label)}
+                onClick={() => action === 'blocked' ? openBlocked() : showComingSoon(label)}
                 className="w-full flex items-center gap-3 p-4 text-left transition-colors hover:opacity-80"
                 style={{ borderBottom: '1px solid var(--border-color)' }}
               >
@@ -353,6 +379,59 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
 
         <p className="text-center text-xs pb-4" style={{ color: '#c4a090' }}>Sprout v1.0 · Made with love for parents</p>
       </div>
+
+      {/* Blocked users modal */}
+      {showBlocked && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.45)' }} onClick={() => setShowBlocked(false)}>
+          <div className="w-full max-w-md rounded-2xl overflow-hidden" style={{ background: 'white' }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--border-color)' }}>
+              <h2 className="text-base font-bold" style={{ color: '#2a1f18' }}>Blocked users</h2>
+              <button onClick={() => setShowBlocked(false)} style={{ color: '#9a8070' }}><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-5 max-h-[60vh] overflow-y-auto">
+              {blockedLoading ? (
+                <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin" style={{ color: 'var(--brand)' }} /></div>
+              ) : blockedUsers.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3" style={{ background: 'var(--brand-light)' }}>
+                    <Ban className="w-6 h-6" style={{ color: 'var(--brand)' }} />
+                  </div>
+                  <p className="text-sm font-semibold mb-1" style={{ color: '#2a1f18' }}>No blocked users</p>
+                  <p className="text-sm" style={{ color: '#9a8070' }}>People you block will appear here.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {blockedUsers.map((u) => (
+                    <div key={u.blockId} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: '#faf8f6' }}>
+                      {u.avatar_url ? (
+                        <img src={u.avatar_url} alt={u.first_name || 'User'} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center text-base font-bold text-white flex-shrink-0" style={{ background: 'var(--brand)' }}>
+                          {(u.first_name || 'U').charAt(0)}
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold" style={{ color: '#2a1f18' }}>
+                          {u.first_name}{u.last_initial ? ` ${u.last_initial}.` : ''}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleUnblock(u.blockId)}
+                        disabled={unblockingId === u.blockId}
+                        className="text-xs font-semibold px-3 py-1.5 rounded-xl border transition-colors hover:opacity-80 flex items-center gap-1.5"
+                        style={{ borderColor: '#d0c8c0', color: '#5a4035', background: 'white', opacity: unblockingId === u.blockId ? 0.5 : 1 }}
+                      >
+                        {unblockingId === u.blockId ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                        Unblock
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Coming soon toast */}
       {comingSoon && (

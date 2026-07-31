@@ -1,12 +1,14 @@
 'use client';
 
-import { useState } from 'react';
-import { ArrowLeft, MapPin, Baby, Star, Heart, UserPlus, MessageCircle, X, Loader2, Users } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ArrowLeft, MapPin, Baby, Star, Heart, UserPlus, MessageCircle, X, Loader2, Users, Flag, Ban } from 'lucide-react';
 import { Profile } from '@/lib/profiles';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { sendNotificationEmail } from '@/lib/notifications';
 import { formatLocation } from '@/lib/utils';
+import ReportModal, { type ReportTarget } from '@/components/sprout/ReportModal';
+import { blockUser, isUserBlockedByMe } from '@/lib/blocks';
 
 interface PublicProfileViewProps {
   profile: Profile;
@@ -22,6 +24,26 @@ export default function PublicProfileView({ profile, onBack, onConnect, onMessag
   const [hovered, setHovered] = useState<'accept' | 'decline' | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [connectError, setConnectError] = useState('');
+  const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
+  const [blocked, setBlocked] = useState(false);
+  const [blockLoading, setBlockLoading] = useState(false);
+  const [showBlockConfirm, setShowBlockConfirm] = useState(false);
+
+  useEffect(() => {
+    if (!user || !profile.userId || profile.userId === user.id) return;
+    isUserBlockedByMe(profile.userId).then(setBlocked);
+  }, [user, profile.userId]);
+
+  async function handleBlock() {
+    if (!user || !profile.userId) return;
+    setBlockLoading(true);
+    const ok = await blockUser(profile.userId);
+    setBlockLoading(false);
+    if (ok) {
+      setBlocked(true);
+      setShowBlockConfirm(false);
+    }
+  }
 
   async function handleConnect() {
     if (!user || !profile.userId) return;
@@ -177,6 +199,31 @@ export default function PublicProfileView({ profile, onBack, onConnect, onMessag
             {connecting ? 'Sending…' : 'Connect'}
           </button>
         )}
+        {profile.userId && profile.userId !== user?.id && (
+          <>
+            <button
+              onClick={() => setShowBlockConfirm(true)}
+              disabled={blocked}
+              className="flex items-center justify-center gap-1.5 text-sm font-semibold py-2.5 px-3 rounded-xl border-2 transition-all hover:bg-red-50"
+              style={{
+                borderColor: blocked ? '#fecaca' : '#d0c8c0',
+                color: blocked ? '#ef4444' : '#7a6055',
+                opacity: blocked ? 0.7 : 1,
+              }}
+              title={blocked ? 'User blocked' : 'Block this user'}
+            >
+              <Ban className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setReportTarget({ type: 'user', userId: profile.userId! })}
+              className="flex items-center justify-center gap-1.5 text-sm font-semibold py-2.5 px-3 rounded-xl border-2 transition-all hover:bg-orange-50"
+              style={{ borderColor: '#d0c8c0', color: '#7a6055' }}
+              title="Report this user"
+            >
+              <Flag className="w-4 h-4" />
+            </button>
+          </>
+        )}
       </div>
 
       {connectError && (
@@ -188,6 +235,41 @@ export default function PublicProfileView({ profile, onBack, onConnect, onMessag
         <p className="text-xs text-center mt-3" style={{ color: '#b8a090' }}>
           {pendingRequest ? 'Accept the request to start messaging' : 'Connect first to send a message'}
         </p>
+      )}
+      <ReportModal target={reportTarget} open={!!reportTarget} onClose={() => setReportTarget(null)} />
+
+      {showBlockConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.45)' }} onClick={() => setShowBlockConfirm(false)}>
+          <div className="w-full max-w-sm rounded-2xl overflow-hidden" style={{ background: 'white' }} onClick={(e) => e.stopPropagation()}>
+            <div className="p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <Ban className="w-5 h-5" style={{ color: '#ef4444' }} />
+                <h2 className="text-base font-bold" style={{ color: '#2a1f18' }}>Block {profile.name}?</h2>
+              </div>
+              <p className="text-sm mb-5" style={{ color: '#7a6055', lineHeight: 1.5 }}>
+                They won&apos;t be able to see your posts, listings, or profile, and you won&apos;t see theirs. You can unblock them anytime in Settings.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleBlock}
+                  disabled={blockLoading}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80 flex items-center justify-center gap-2"
+                  style={{ background: '#ef4444', color: 'white', opacity: blockLoading ? 0.7 : 1 }}
+                >
+                  {blockLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {blockLoading ? 'Blocking…' : 'Block'}
+                </button>
+                <button
+                  onClick={() => setShowBlockConfirm(false)}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold border transition-opacity hover:opacity-80"
+                  style={{ borderColor: '#d0c8c0', color: '#5a4035', background: 'white' }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

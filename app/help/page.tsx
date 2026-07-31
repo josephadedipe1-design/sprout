@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Leaf, ArrowLeft, MessageCircle, Mail, BookOpen, Flag } from 'lucide-react';
+import { Leaf, ArrowLeft, MessageCircle, Mail, BookOpen, Flag, Shield } from 'lucide-react';
 
 const FAQS = [
   {
@@ -59,6 +59,7 @@ export default function HelpPage() {
         <div className="grid grid-cols-2 gap-3 mb-10">
           {[
             { icon: BookOpen, title: 'Community Guidelines', href: '/guidelines', color: '#059669', bg: '#ECFDF5' },
+            { icon: Shield, title: 'Meetup Safety', href: '/safety', color: '#059669', bg: '#ECFDF5' },
             { icon: Flag, title: 'Report a Problem', href: '#report', color: '#dc2626', bg: '#FEF2F2' },
             { icon: Mail, title: 'Email Support', href: 'mailto:hello@sprout.app', color: '#2563eb', bg: '#EFF4FF' },
             { icon: MessageCircle, title: 'Privacy Policy', href: '/privacy', color: '#7D3C1A', bg: '#FFF5EF' },

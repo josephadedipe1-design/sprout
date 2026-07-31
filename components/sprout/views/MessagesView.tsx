@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Search, MoreHorizontal, ArrowLeft, Edit2, X, Users, ShoppingBag, Car, Moon, Tag, Gamepad2, Package, Utensils, Home, BookOpen, Box } from 'lucide-react';
+import { Send, Search, MoreHorizontal, ArrowLeft, Edit2, X, Users, ShoppingBag, Car, Moon, Tag, Gamepad2, Package, Utensils, Home, BookOpen, Box, Flag } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { sendNotificationEmail, truncatePreview } from '@/lib/notifications';
 import type { DbMessage, DbProfile } from '@/lib/types';
 import type { ListingSnap } from './ListingDetailView';
 import { formatLocation, formatName, getCategoryStyle } from '@/lib/utils';
+import ReportModal, { type ReportTarget } from '@/components/sprout/ReportModal';
 
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
   Travel: Car, Sleep: Moon, Clothing: Tag, Toys: Gamepad2,
@@ -119,6 +120,7 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
   const [readMap, setReadMap] = useState<Record<string, string>>({});
 
   const [conversationsLoaded, setConversationsLoaded] = useState(false);
+  const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
 
   // Load read timestamps from localStorage on mount
   useEffect(() => {
@@ -532,7 +534,7 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
                       {activeConv.name.charAt(0)}
                     </div>
                   )}
-                  <div>
+                  <div className="group/msg relative">
                     <div
                       className="max-w-xs lg:max-w-md px-4 py-2.5 rounded-2xl text-sm leading-relaxed"
                       style={{
@@ -545,6 +547,16 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
                       {m.text}
                     </div>
                     <p className={`text-xs mt-1 ${m.from === 'me' ? 'text-right' : ''}`} style={{ color: '#9a8070' }}>{m.time}</p>
+                    {m.from === 'them' && (
+                      <button
+                        onClick={() => setReportTarget({ type: 'message', messageId: m.id, userId: activeConv?.otherUserId })}
+                        className="absolute -left-8 top-0 opacity-0 group-hover/msg:opacity-100 transition-opacity w-7 h-7 rounded-full flex items-center justify-center hover:bg-orange-50"
+                        style={{ color: '#c4a090' }}
+                        title="Report message"
+                      >
+                        <Flag className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -647,6 +659,7 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
           </div>
         </div>
       )}
+      <ReportModal target={reportTarget} open={!!reportTarget} onClose={() => setReportTarget(null)} />
     </div>
   );
 }

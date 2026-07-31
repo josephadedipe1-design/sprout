@@ -19,6 +19,7 @@ import SearchView from '@/components/sprout/views/SearchView';
 import WelcomeView from '@/components/sprout/views/WelcomeView';
 import SettingsView from '@/components/sprout/views/SettingsView';
 import BroadcastView from '@/components/sprout/views/BroadcastView';
+import ModerationView from '@/components/sprout/views/ModerationView';
 import { Profile } from '@/lib/profiles';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
@@ -33,6 +34,7 @@ type SubView =
   | { type: 'editprofile' }
   | { type: 'settings' }
   | { type: 'broadcast' }
+  | { type: 'moderation' }
   | { type: 'publicprofile'; profile: Profile; connected: boolean; pendingRequest?: boolean }
   | null;
 
@@ -306,6 +308,9 @@ function AppContent() {
     if (subView?.type === 'broadcast') {
       return <BroadcastView onBack={() => setSubView(null)} />;
     }
+    if (subView?.type === 'moderation') {
+      return <ModerationView onBack={() => setSubView(null)} />;
+    }
     if (subView?.type === 'publicprofile') {
       return (
         <PublicProfileView
@@ -376,6 +381,7 @@ function AppContent() {
         onNav={navigate}
         onNewPost={() => setSubView({ type: 'newpost' })}
         onBroadcast={() => setSubView({ type: 'broadcast' })}
+        onModeration={() => setSubView({ type: 'moderation' })}
         hasUnread={hasUnread}
         unreadMessages={unreadMessages}
       />

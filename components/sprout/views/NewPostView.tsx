@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowLeft, MapPin, X } from 'lucide-react';
+import { ArrowLeft, MapPin, X, Shield } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 
@@ -29,6 +29,7 @@ export default function NewPostView({ onBack, onPublish, onListInMarket }: NewPo
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState('');
+  const [safetyDismissed, setSafetyDismissed] = useState(false);
 
   function toggleTag(t: string) {
     setSelectedTags((prev) => prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]);
@@ -110,6 +111,19 @@ export default function NewPostView({ onBack, onPublish, onListInMarket }: NewPo
               {selectedType.label}
             </span>
           </div>
+
+          {postType === 'meetup' && !safetyDismissed && (
+            <div className="flex items-center gap-2.5 p-3 rounded-xl" style={{ background: '#FEF2F2', border: '1px solid #FECACA' }}>
+              <Shield className="w-4 h-4 flex-shrink-0" style={{ color: '#DC2626' }} />
+              <p className="text-sm flex-1" style={{ color: '#B91C1C' }}>
+                Meeting someone new?{' '}
+                <a href="/safety" target="_blank" className="font-semibold underline">Read our safety tips</a>
+              </p>
+              <button onClick={() => setSafetyDismissed(true)} className="flex-shrink-0" style={{ color: '#B91C1C' }}>
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
 
           <div>
             <textarea

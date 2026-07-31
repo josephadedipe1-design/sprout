@@ -191,6 +191,9 @@ export default function LoginPage() {
                 <a href="/terms" target="_blank" className="underline" style={{ color: '#9a8070' }}>Terms</a>{' '}
                 and{' '}
                 <a href="/privacy" target="_blank" className="underline" style={{ color: '#9a8070' }}>Privacy Policy</a>.
+                <br />
+                Meeting someone new? Read our{' '}
+                <a href="/safety" target="_blank" className="underline" style={{ color: '#9a8070' }}>Safety Tips</a>.
               </p>
             </>
           )}

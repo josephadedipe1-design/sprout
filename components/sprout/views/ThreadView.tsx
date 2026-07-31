@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ArrowLeft, Heart, Send, MoreHorizontal, MapPin, Loader2 } from 'lucide-react';
+import { ArrowLeft, Heart, Send, MoreHorizontal, MapPin, Loader2, Flag, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { sendNotificationEmail, truncatePreview } from '@/lib/notifications';
 import type { DbProfile } from '@/lib/types';
 import { formatLocation, formatName } from '@/lib/utils';
+import ReportModal, { type ReportTarget } from '@/components/sprout/ReportModal';
 
 interface Post {
   id: string;
@@ -50,6 +51,8 @@ export default function ThreadView({ postId, onBack }: ThreadViewProps) {
   const [submitError, setSubmitError] = useState('');
   const [reply, setReply] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
 
   const loadThread = useCallback(async () => {
     if (!user) { setLoading(false); return; }
@@ -222,7 +225,44 @@ export default function ThreadView({ postId, onBack }: ThreadViewProps) {
                   </div>
                 </div>
               </div>
-              <button style={{ color: '#c4a090' }}><MoreHorizontal className="w-4 h-4" /></button>
+              <div className="relative" onClick={(e) => e.stopPropagation()}>
+                <button
+                  onClick={() => setMenuOpenId(menuOpenId === `post-${post.id}` ? null : `post-${post.id}`)}
+                  className="w-7 h-7 rounded-full flex items-center justify-center transition-colors hover:bg-orange-50"
+                  style={{ color: '#c4a090' }}
+                >
+                  <MoreHorizontal className="w-4 h-4" />
+                </button>
+                {menuOpenId === `post-${post.id}` && (
+                  <div
+                    className="absolute right-0 top-8 z-20 rounded-xl shadow-lg border overflow-hidden"
+                    style={{ background: 'white', borderColor: 'var(--border-color)', minWidth: 140 }}
+                  >
+                    {post.profile?.id && post.profile.id !== user?.id ? (
+                      <button
+                        onClick={() => { setReportTarget({ type: 'post', postId: post.id, userId: post.profile?.id }); setMenuOpenId(null); }}
+                        className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-left transition-colors hover:bg-orange-50"
+                        style={{ color: '#7a6055' }}
+                      >
+                        <Flag className="w-3.5 h-3.5" />
+                        Report post
+                      </button>
+                    ) : (
+                      <button
+                        onClick={async () => {
+                          await supabase.from('posts').delete().eq('id', post.id);
+                          onBack();
+                        }}
+                        className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-left transition-colors hover:bg-red-50"
+                        style={{ color: '#E53E3E' }}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Delete post
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
             <p className="text-sm leading-relaxed mb-4" style={{ color: '#3a2820', lineHeight: 1.65 }}>{post.body}</p>
             <button
@@ -261,7 +301,35 @@ export default function ThreadView({ postId, onBack }: ThreadViewProps) {
                       <div className="flex-1 rounded-xl p-3.5" style={{ background: 'white', border: '1px solid var(--border-color)' }}>
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-sm font-semibold" style={{ color: '#2a1f18' }}>{name}</span>
-                          <span className="text-xs" style={{ color: '#9a8070' }}>{formatRelativeTime(r.created_at)}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs" style={{ color: '#9a8070' }}>{formatRelativeTime(r.created_at)}</span>
+                            {r.author_id !== user?.id && (
+                              <div className="relative" onClick={(e) => e.stopPropagation()}>
+                                <button
+                                  onClick={() => setMenuOpenId(menuOpenId === r.id ? null : r.id)}
+                                  className="w-6 h-6 rounded-full flex items-center justify-center transition-colors hover:bg-orange-50"
+                                  style={{ color: '#c4a090' }}
+                                >
+                                  <MoreHorizontal className="w-3.5 h-3.5" />
+                                </button>
+                                {menuOpenId === r.id && (
+                                  <div
+                                    className="absolute right-0 top-7 z-20 rounded-xl shadow-lg border overflow-hidden"
+                                    style={{ background: 'white', borderColor: 'var(--border-color)', minWidth: 140 }}
+                                  >
+                                    <button
+                                      onClick={() => { setReportTarget({ type: 'message', messageId: r.id, userId: r.author_id }); setMenuOpenId(null); }}
+                                      className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-left transition-colors hover:bg-orange-50"
+                                      style={{ color: '#7a6055' }}
+                                    >
+                                      <Flag className="w-3.5 h-3.5" />
+                                      Report reply
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
                         <p className="text-sm leading-relaxed" style={{ color: '#3a2820' }}>{r.body}</p>
                       </div>
@@ -311,6 +379,7 @@ export default function ThreadView({ postId, onBack }: ThreadViewProps) {
           </button>
         </div>
       </div>
+      <ReportModal target={reportTarget} open={!!reportTarget} onClose={() => setReportTarget(null)} />
     </div>
   );
 }
