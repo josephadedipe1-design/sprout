@@ -33,9 +33,11 @@ export async function fetchBlockedUsers(): Promise<BlockedUser[]> {
 }
 
 export async function blockUser(blockedId: string): Promise<boolean> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
   const { error } = await supabase
     .from('blocks')
-    .insert({ blocked_id: blockedId });
+    .insert({ blocker_id: user.id, blocked_id: blockedId });
   if (error) return false;
   return true;
 }

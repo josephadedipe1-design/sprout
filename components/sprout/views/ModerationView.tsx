@@ -7,7 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 
 const ADMIN_ID = '4848415f-2bbe-409a-8443-eb925b0b88e8';
 
-type StatusFilter = 'pending' | 'dismissed' | 'action_taken' | 'all';
+type StatusFilter = 'pending' | 'dismissed' | 'actioned' | 'all';
 
 interface ReportRow {
   id: string;
@@ -49,7 +49,7 @@ const REASON_LABELS: Record<string, string> = {
 const STATUS_STYLES: Record<string, { bg: string; color: string; label: string }> = {
   pending: { bg: '#FEF3C7', color: '#92400E', label: 'Pending' },
   dismissed: { bg: '#F1F5F9', color: '#475569', label: 'Dismissed' },
-  action_taken: { bg: '#DCFCE7', color: '#166534', label: 'Action taken' },
+  actioned: { bg: '#DCFCE7', color: '#166534', label: 'Action taken' },
   reviewed: { bg: '#E0E7FF', color: '#3730A3', label: 'Reviewed' },
 };
 
@@ -198,7 +198,7 @@ export default function ModerationView({ onBack }: ModerationViewProps) {
     loadReports();
   }, [loadReports]);
 
-  async function updateStatus(reportId: string, status: 'dismissed' | 'action_taken') {
+  async function updateStatus(reportId: string, status: 'dismissed' | 'actioned') {
     setActingId(reportId);
     const { error } = await supabase.from('reports').update({ status }).eq('id', reportId);
     setActingId(null);
@@ -222,7 +222,7 @@ export default function ModerationView({ onBack }: ModerationViewProps) {
 
   const FILTERS: { id: StatusFilter; label: string }[] = [
     { id: 'pending', label: 'Pending' },
-    { id: 'action_taken', label: 'Action taken' },
+    { id: 'actioned', label: 'Action taken' },
     { id: 'dismissed', label: 'Dismissed' },
     { id: 'all', label: 'All' },
   ];
@@ -337,7 +337,7 @@ export default function ModerationView({ onBack }: ModerationViewProps) {
                 {r.status === 'pending' && (
                   <div className="flex gap-2">
                     <button
-                      onClick={() => updateStatus(r.id, 'action_taken')}
+                      onClick={() => updateStatus(r.id, 'actioned')}
                       disabled={actingId === r.id}
                       className="flex-1 text-sm font-semibold py-2 rounded-xl transition-opacity hover:opacity-80 flex items-center justify-center gap-1.5"
                       style={{ background: 'var(--brand)', color: 'white', opacity: actingId === r.id ? 0.5 : 1 }}
