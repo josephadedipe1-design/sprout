@@ -135,12 +135,12 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
     setBlockedLoading(false);
   }
 
-  async function handleUnblock(blockId: string) {
-    setUnblockingId(blockId);
-    const ok = await unblockUser(blockId);
+  async function handleUnblock(userId: string) {
+    setUnblockingId(userId);
+    const ok = await unblockUser(userId);
     setUnblockingId(null);
     if (ok) {
-      setBlockedUsers((prev) => prev.filter((u) => u.blockId !== blockId));
+      setBlockedUsers((prev) => prev.filter((u) => u.userId !== userId));
     }
   }
 
@@ -402,7 +402,7 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
               ) : (
                 <div className="space-y-3">
                   {blockedUsers.map((u) => (
-                    <div key={u.blockId} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: '#faf8f6' }}>
+                    <div key={u.userId} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: '#faf8f6' }}>
                       {u.avatar_url ? (
                         <img src={u.avatar_url} alt={u.first_name || 'User'} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
                       ) : (
@@ -416,12 +416,12 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
                         </p>
                       </div>
                       <button
-                        onClick={() => handleUnblock(u.blockId)}
-                        disabled={unblockingId === u.blockId}
+                        onClick={() => handleUnblock(u.userId)}
+                        disabled={unblockingId === u.userId}
                         className="text-xs font-semibold px-3 py-1.5 rounded-xl border transition-colors hover:opacity-80 flex items-center gap-1.5"
-                        style={{ borderColor: '#d0c8c0', color: '#5a4035', background: 'white', opacity: unblockingId === u.blockId ? 0.5 : 1 }}
+                        style={{ borderColor: '#d0c8c0', color: '#5a4035', background: 'white', opacity: unblockingId === u.userId ? 0.5 : 1 }}
                       >
-                        {unblockingId === u.blockId ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                        {unblockingId === u.userId ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
                         Unblock
                       </button>
                     </div>

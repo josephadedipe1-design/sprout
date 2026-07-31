@@ -1,39 +1,94 @@
-/*
-# Add get_blocked_users function
+import { supabase } from '@/lib/supabase';
 
-The profiles SELECT policy correctly hides blocked users' profiles from general
-app use (mutual invisibility). However, a user's own "Blocked users" list in
-Settings needs to show the name/avatar of people THEY blocked, which the normal
-policy now prevents. This SECURITY DEFINER function bypasses that specific
-restriction, safely, since a user viewing their own block list already knows
-who they blocked.
-*/
+export interface BlockedUser {
+  blockId: string;
+  userId: string;
+  first_name: string | null;
+  last_initial: string | null;
+  avatar_url: string | null;
+  created_at: string;
+}
 
-CREATE OR REPLACE FUNCTION get_blocked_users()
-RETURNS TABLE (
-  block_id uuid,
-  user_id uuid,
-  first_name text,
-  last_initial text,
-  avatar_url text,
-  created_at timestamptz
-)
-LANGUAGE sql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT
-    b.id as block_id,
-    b.blocked_id as user_id,
-    p.first_name,
-    p.last_initial,
-    p.avatar_url,
-    b.created_at
-  FROM blocks b
-  JOIN profiles p ON p.id = b.blocked_id
-  WHERE b.blocker_id = auth.uid()
-  ORDER BY b.created_at DESC;
-$$;
+export async function fetchBlockedUsers(): Promise<BlockedUser[]> {
+  const { data, error } = await supabase.rpc('get_blocked_users');
 
-REVOKE ALL ON FUNCTION get_blocked_users() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION get_blocked_users() TO authenticated;
+  if (error || !data) return [];
+
+  return (data as any[]).map((row) => ({
+    blockId: row.block_id,
+    userId: row.user_id,
+    first_name: row.first_name ?? null,
+    last_initial: row.last_initial ?? null,
+    avatar_url: row.avatar_url ?? null,
+    created_at: row.created_at,
+  }));
+}
+
+export async function blockUser(blockedId: string): Promise<boolean> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+  const { error } = await supabase
+    .from('blocks')
+    .insert({ blocker_id: user.id, blocked_id: blockedId });
+  if (error) return false;
+  return true;
+}
+
+export async function unblockUser(blockId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('blocks')
+    .delete()
+    .eq('id', blockId);
+  if (error) return false;
+  return true;
+}
+
+export async function isUserBlockedByMe(userId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('blocks')
+    .select('id')
+    .eq('blocked_id', userId)
+    .maybeSingle();
+  return !!data;
+}
+josephadedipe@Josephs-MacBook-Air sprout % >....                                
+    userId: row.user_id,
+    first_name: row.first_name ?? null,
+    last_initial: row.last_initial ?? null,
+    avatar_url: row.avatar_url ?? null,
+    created_at: row.created_at,
+  }));
+}
+
+export async function blockUser(blockedId: string): Promise<boolean> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+  const { error } = await supabase
+    .from('blocks')
+    .insert({ blocker_id: user.id, blocked_id: blockedId });
+  if (error) return false;
+  return true;
+}
+
+export async function unblockUser(userId: string): Promise<boolean> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+  const { error } = await supabase
+    .from('blocks')
+    .delete()
+    .eq('blocker_id', user.id)
+    .eq('blocked_id', userId);
+  if (error) return false;
+  return true;
+}
+
+export async function isUserBlockedByMe(userId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('blocks')
+    .select('blocker_id')
+    .eq('blocked_id', userId)
+    .maybeSingle();
+  return !!data;
+}
+zsh: parse error near `}'
+josephadedipe@Josephs-MacBook-Air sprout % 

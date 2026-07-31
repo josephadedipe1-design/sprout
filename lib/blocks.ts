@@ -1,7 +1,6 @@
 import { supabase } from '@/lib/supabase';
 
 export interface BlockedUser {
-  blockId: string;
   userId: string;
   first_name: string | null;
   last_initial: string | null;
@@ -15,7 +14,6 @@ export async function fetchBlockedUsers(): Promise<BlockedUser[]> {
   if (error || !data) return [];
 
   return (data as any[]).map((row) => ({
-    blockId: row.block_id,
     userId: row.user_id,
     first_name: row.first_name ?? null,
     last_initial: row.last_initial ?? null,
@@ -34,11 +32,14 @@ export async function blockUser(blockedId: string): Promise<boolean> {
   return true;
 }
 
-export async function unblockUser(blockId: string): Promise<boolean> {
+export async function unblockUser(userId: string): Promise<boolean> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
   const { error } = await supabase
     .from('blocks')
     .delete()
-    .eq('id', blockId);
+    .eq('blocker_id', user.id)
+    .eq('blocked_id', userId);
   if (error) return false;
   return true;
 }
@@ -46,7 +47,7 @@ export async function unblockUser(blockId: string): Promise<boolean> {
 export async function isUserBlockedByMe(userId: string): Promise<boolean> {
   const { data } = await supabase
     .from('blocks')
-    .select('id')
+    .select('blocker_id')
     .eq('blocked_id', userId)
     .maybeSingle();
   return !!data;
