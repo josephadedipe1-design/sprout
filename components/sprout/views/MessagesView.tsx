@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Search, MoreHorizontal, ArrowLeft, Edit2, X, Users, ShoppingBag, Car, Moon, Tag, Gamepad2, Package, Utensils, Home, BookOpen, Box, Flag } from 'lucide-react';
+import { Send, Search, MoreHorizontal, ArrowLeft, Edit2, X, Users, ShoppingBag, Car, Moon, Tag, Gamepad2, Package, Utensils, Home, BookOpen, Box, Flag, Copy } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { sendNotificationEmail, truncatePreview } from '@/lib/notifications';
@@ -121,6 +121,7 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
 
   const [conversationsLoaded, setConversationsLoaded] = useState(false);
   const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
 
   // Load read timestamps from localStorage on mount
   useEffect(() => {
@@ -534,28 +535,41 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
                       {activeConv.name.charAt(0)}
                     </div>
                   )}
-                  <div className="group/msg relative">
+                  <div className="relative">
                     <div
+                      onClick={() => m.from === 'them' && setActiveMenuId(activeMenuId === m.id ? null : m.id)}
                       className="max-w-xs lg:max-w-md px-4 py-2.5 rounded-2xl text-sm leading-relaxed"
                       style={{
                         background: m.from === 'me' ? 'var(--brand)' : 'white',
                         color: m.from === 'me' ? 'white' : '#2a1f18',
                         borderRadius: m.from === 'me' ? '1.25rem 1.25rem 0.25rem 1.25rem' : '1.25rem 1.25rem 1.25rem 0.25rem',
                         border: m.from === 'them' ? '1px solid var(--border-color)' : 'none',
+                        cursor: m.from === 'them' ? 'pointer' : 'default',
                       }}
                     >
                       {m.text}
                     </div>
                     <p className={`text-xs mt-1 ${m.from === 'me' ? 'text-right' : ''}`} style={{ color: '#9a8070' }}>{m.time}</p>
-                    {m.from === 'them' && (
-                      <button
-                        onClick={() => setReportTarget({ type: 'message', messageId: m.id, userId: activeConv?.otherUserId })}
-                        className="absolute -left-8 top-0 opacity-0 group-hover/msg:opacity-100 transition-opacity w-7 h-7 rounded-full flex items-center justify-center hover:bg-orange-50"
-                        style={{ color: '#c4a090' }}
-                        title="Report message"
-                      >
-                        <Flag className="w-3.5 h-3.5" />
-                      </button>
+                    {m.from === 'them' && activeMenuId === m.id && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setActiveMenuId(null)} />
+                        <div className="absolute z-50 top-0 left-0 mt-1 rounded-xl border shadow-lg overflow-hidden" style={{ background: 'white', borderColor: 'var(--border-color)', minWidth: 140 }}>
+                          <button
+                            onClick={() => { navigator.clipboard?.writeText(m.text); setActiveMenuId(null); }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left transition-colors hover:bg-orange-50"
+                            style={{ color: '#3a2820' }}
+                          >
+                            <Copy className="w-4 h-4" style={{ color: '#9a8070' }} /> Copy
+                          </button>
+                          <button
+                            onClick={() => { setReportTarget({ type: 'message', messageId: m.id, userId: activeConv?.otherUserId }); setActiveMenuId(null); }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left transition-colors hover:bg-red-50 border-t"
+                            style={{ color: '#dc2626', borderColor: 'var(--border-color)' }}
+                          >
+                            <Flag className="w-4 h-4" /> Report
+                          </button>
+                        </div>
+                      </>
                     )}
                   </div>
                 </div>
