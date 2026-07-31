@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import type { DbListing, DbProfile } from '@/lib/types';
 import { getCategoryStyle, formatLocation } from '@/lib/utils';
+import { sendNotificationEmail, truncatePreview } from '@/lib/notifications';
 
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
   Travel: Car, Sleep: Moon, Clothing: Tag, Toys: Gamepad2,
@@ -289,11 +290,20 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
       return;
     }
 
-    // Update last_message preview
+    /// Update last_message preview
     await supabase.from('conversations').update({
       last_message: composerText.trim(),
       last_message_at: new Date().toISOString(),
     }).eq('id', convId);
+
+    const senderName = profile?.first_name
+      ? (profile.last_initial ? `${profile.first_name} ${profile.last_initial}.` : profile.first_name)
+      : 'Someone';
+    sendNotificationEmail({
+      type: 'message_request',
+      recipientUserId: sellerId,
+      emailData: { actorUserId: user.id, senderName, preview: truncatePreview(composerText.trim()), listingTitle: listing.title },
+    });
 
     setComposerSending(false);
     setComposerSent(true);

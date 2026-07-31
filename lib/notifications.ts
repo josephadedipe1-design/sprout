@@ -2,7 +2,7 @@ import { supabase } from '@/lib/supabase';
 
 const FUNCTION_URL = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/send-notification-email`;
 
-type EmailType = 'welcome' | 'message' | 'like' | 'reply' | 'match_request';
+type EmailType = 'welcome' | 'message' | 'like' | 'reply' | 'match_request' | 'message_request';
 
 interface EmailPayload {
   type: EmailType;

@@ -96,6 +96,21 @@ function buildEmailContent(type: string, data: Record<string, unknown>): { subje
       return { subject, html: htmlTemplate(subject, `${senderName} sent you a message`, body) };
     }
 
+    case "message_request": {
+      const senderName = (data.senderName as string) || "Someone";
+      const preview = (data.preview as string) || "";
+      const listingTitle = (data.listingTitle as string) || "";
+      const subject = listingTitle ? `${senderName} messaged you about "${listingTitle}"` : `${senderName} wants to message you`;
+      const body = `
+        <h1 style="font-size:20px;font-weight:700;color:#2a1f18;margin:0 0 12px 0;">${senderName} wants to message you${listingTitle ? ` about "${listingTitle}"` : ""}</h1>
+        <div style="background-color:#faf8f6;border-radius:12px;padding:16px 20px;margin:0 0 24px 0;">
+          <p style="font-size:15px;line-height:1.6;color:#5a4035;margin:0;">${preview}</p>
+        </div>
+        <p style="font-size:13px;color:#9a8070;margin:0 0 16px 0;">Accept their request to reply.</p>
+        <a href="${data.appUrl || "https://sprout-village.co.uk"}" style="display:inline-block;background-color:#7D3C1A;color:#ffffff;font-size:15px;font-weight:600;padding:14px 32px;border-radius:12px;text-decoration:none;">View request</a>`;
+      return { subject, html: htmlTemplate(subject, `${senderName} wants to message you`, body) };
+    }
+
     case "like": {
       const likerName = (data.likerName as string) || "Someone";
       const postPreview = (data.postPreview as string) || "your post";
@@ -188,6 +203,7 @@ Deno.serve(async (req: Request) => {
     if (prefs) {
       const prefMap: Record<string, keyof typeof prefs> = {
         message: "email_messages",
+        message_request: "email_messages",
         like: "email_replies",
         reply: "email_replies",
         match_request: "email_matches",
