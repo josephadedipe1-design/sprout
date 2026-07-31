@@ -12,13 +12,13 @@ type StatusFilter = 'pending' | 'dismissed' | 'action_taken' | 'all';
 interface ReportRow {
   id: string;
   reason: string;
-  details: string | null;
+  detail: string | null;
   status: string;
   created_at: string;
   reporter_id: string;
-  reported_user_id: string | null;
-  reported_post_id: string | null;
-  reported_message_id: string | null;
+  user_id: string | null;
+  post_id: string | null;
+  message_id: string | null;
 }
 
 interface ReporterInfo {
@@ -103,7 +103,7 @@ export default function ModerationView({ onBack }: ModerationViewProps) {
     }
 
     // Fetch reported posts
-    const postIds = Array.from(new Set(rows.map((r) => r.reported_post_id).filter(Boolean))) as string[];
+    const postIds = Array.from(new Set(rows.map((r) => r.post_id).filter(Boolean))) as string[];
     const postMap: Record<string, { body: string; image_url: string | null; author_id: string }> = {};
     if (postIds.length > 0) {
       const { data: postRows } = await supabase
@@ -116,7 +116,7 @@ export default function ModerationView({ onBack }: ModerationViewProps) {
     }
 
     // Fetch reported messages
-    const messageIds = Array.from(new Set(rows.map((r) => r.reported_message_id).filter(Boolean))) as string[];
+    const messageIds = Array.from(new Set(rows.map((r) => r.message_id).filter(Boolean))) as string[];
     const messageMap: Record<string, { body: string; sender_id: string }> = {};
     if (messageIds.length > 0) {
       const { data: msgRows } = await supabase
@@ -129,7 +129,7 @@ export default function ModerationView({ onBack }: ModerationViewProps) {
     }
 
     // Fetch reported user profiles
-    const reportedUserIds = Array.from(new Set(rows.map((r) => r.reported_user_id).filter(Boolean))) as string[];
+    const reportedUserIds = Array.from(new Set(rows.map((r) => r.user_id).filter(Boolean))) as string[];
     const reportedUserMap: Record<string, { first_name: string; last_initial: string | null }> = {};
     if (reportedUserIds.length > 0) {
       const { data: userRows } = await supabase
@@ -157,24 +157,24 @@ export default function ModerationView({ onBack }: ModerationViewProps) {
     const enriched: EnrichedReport[] = rows.map((r) => {
       let preview: ContentPreview = { kind: 'unknown', text: null, image_url: null, authorName: null };
 
-      if (r.reported_post_id && postMap[r.reported_post_id]) {
-        const p = postMap[r.reported_post_id];
+      if (r.post_id && postMap[r.post_id]) {
+        const p = postMap[r.post_id];
         preview = {
           kind: 'post',
           text: p.body,
           image_url: p.image_url,
           authorName: authorMap[p.author_id] ?? null,
         };
-      } else if (r.reported_message_id && messageMap[r.reported_message_id]) {
-        const m = messageMap[r.reported_message_id];
+      } else if (r.message_id && messageMap[r.message_id]) {
+        const m = messageMap[r.message_id];
         preview = {
           kind: 'message',
           text: m.body,
           image_url: null,
           authorName: null,
         };
-      } else if (r.reported_user_id && reportedUserMap[r.reported_user_id]) {
-        const u = reportedUserMap[r.reported_user_id];
+      } else if (r.user_id && reportedUserMap[r.user_id]) {
+        const u = reportedUserMap[r.user_id];
         preview = {
           kind: 'user',
           text: null,
@@ -297,9 +297,9 @@ export default function ModerationView({ onBack }: ModerationViewProps) {
                 </div>
 
                 {/* Details */}
-                {r.details && (
+                {r.detail && (
                   <p className="text-sm mb-3 p-2.5 rounded-lg" style={{ background: '#faf8f6', color: '#5a4035', lineHeight: 1.5 }}>
-                    &ldquo;{r.details}&rdquo;
+                    &ldquo;{r.detail}&rdquo;
                   </p>
                 )}
 

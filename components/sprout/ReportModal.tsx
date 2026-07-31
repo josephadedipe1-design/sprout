@@ -47,17 +47,17 @@ export default function ReportModal({ target, open, onClose }: ReportModalProps)
     const row: Record<string, unknown> = {
       reporter_id: user.id,
       reason,
-      details: details.trim() || null,
+      detail: details.trim() || null,
     };
 
     if (target.type === 'post') {
-      row.reported_post_id = target.postId;
-      if (target.userId) row.reported_user_id = target.userId;
+      row.post_id = target.postId;
+      if (target.userId) row.user_id = target.userId;
     } else if (target.type === 'message') {
-      row.reported_message_id = target.messageId;
-      if (target.userId) row.reported_user_id = target.userId;
+      row.message_id = target.messageId;
+      if (target.userId) row.user_id = target.userId;
     } else {
-      row.reported_user_id = target.userId;
+      row.user_id = target.userId;
     }
 
     const { error: insertError } = await supabase.from('reports').insert(row);
