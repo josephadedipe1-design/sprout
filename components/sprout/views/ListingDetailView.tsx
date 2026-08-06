@@ -42,7 +42,7 @@ type FullListing = DbListing & { profiles: DbProfile | null };
 type ConnectionStatus = 'loading' | 'connected' | 'not_connected';
 
 export default function ListingDetailView({ listingId, onBack, onMessage }: ListingDetailViewProps) {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [listing, setListing] = useState<FullListing | null>(null);
   const [primaryImageUrl, setPrimaryImageUrl] = useState('');
   const [primaryImageId, setPrimaryImageId] = useState<string | null>(null);
