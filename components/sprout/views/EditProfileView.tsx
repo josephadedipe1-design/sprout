@@ -1,10 +1,12 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Camera, Loader2, MapPin } from 'lucide-react';
+import { ArrowLeft, Camera, Loader2, MapPin, Move } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { fetchUserInterests } from '@/lib/profiles';
+import { objectPosition } from '@/lib/utils';
+import ImageRepositioner from '@/components/sprout/ImageRepositioner';
 
 interface EditProfileViewProps {
   onBack: () => void;
@@ -42,6 +44,8 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
     interests: [] as string[],
   });
   const [avatarUrl, setAvatarUrl] = useState('');
+  const [avatarPos, setAvatarPos] = useState({ x: 50, y: 50 });
+  const [showReposition, setShowReposition] = useState(false);
 
   useEffect(() => {
     if (profile) {
@@ -55,6 +59,7 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
         interests: profile.interests ?? [],
       });
       setAvatarUrl(profile.avatar_url || '');
+      setAvatarPos({ x: profile.avatar_position_x ?? 50, y: profile.avatar_position_y ?? 50 });
       if (user) {
         fetchUserInterests(user.id).then(interests => {
           setForm(f => ({ ...f, interests: interests.length > 0 ? interests : f.interests }));
@@ -90,7 +95,9 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
         .eq('id', user.id);
       if (updateError) throw updateError;
       setAvatarUrl(bustedUrl);
+      setAvatarPos({ x: 50, y: 50 });
       await refreshProfile();
+      setShowReposition(true);
     } catch {
       setError('Failed to upload photo. Please try again.');
     } finally {
@@ -213,7 +220,7 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
       <div className="flex flex-col items-center mb-7">
         <div className="relative">
           {avatarUrl ? (
-            <img src={avatarUrl} alt={form.name} className="w-24 h-24 rounded-full object-cover" />
+            <img src={avatarUrl} alt={form.name} className="w-24 h-24 rounded-full object-cover" style={{ objectPosition: objectPosition(avatarPos.x, avatarPos.y) }} />
           ) : (
             <div
               className="w-24 h-24 rounded-full flex items-center justify-center text-3xl font-bold text-white"
@@ -234,14 +241,25 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
             }
           </button>
         </div>
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-          className="mt-2 text-sm font-medium transition-opacity hover:opacity-70"
-          style={{ color: 'var(--brand)' }}
-        >
-          {uploading ? 'Uploading…' : 'Change photo'}
-        </button>
+        <div className="flex items-center gap-3 mt-2">
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="text-sm font-medium transition-opacity hover:opacity-70"
+            style={{ color: 'var(--brand)' }}
+          >
+            {uploading ? 'Uploading…' : 'Change photo'}
+          </button>
+          {avatarUrl && (
+            <button
+              onClick={() => setShowReposition(true)}
+              className="text-sm font-medium transition-opacity hover:opacity-70 flex items-center gap-1"
+              style={{ color: 'var(--brand)' }}
+            >
+              <Move className="w-3.5 h-3.5" /> Reposition
+            </button>
+          )}
+        </div>
         <input
           ref={fileInputRef}
           type="file"
@@ -250,6 +268,27 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
           onChange={handleAvatarChange}
         />
       </div>
+
+      {showReposition && avatarUrl && (
+        <ImageRepositioner
+          src={avatarUrl}
+          initialX={avatarPos.x}
+          initialY={avatarPos.y}
+          shape="circle"
+          onSave={async (x, y) => {
+            if (!user) return;
+            await supabase.from('profiles').update({
+              avatar_position_x: x,
+              avatar_position_y: y,
+              updated_at: new Date().toISOString(),
+            }).eq('id', user.id);
+            setAvatarPos({ x, y });
+            await refreshProfile();
+            setShowReposition(false);
+          }}
+          onClose={() => setShowReposition(false)}
+        />
+      )}
 
       <div className="space-y-5">
         <div>

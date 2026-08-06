@@ -3,7 +3,7 @@
 import { Leaf, Home, MessageCircle, Users, Bell, User, Search, Plus, LogOut, ShoppingBag, Megaphone, Shield } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
-import { formatLocation, formatName } from '@/lib/utils';
+import { formatLocation, formatName, objectPosition } from '@/lib/utils';
 
 const ADMIN_ID = '4848415f-2bbe-409a-8443-eb925b0b88e8';
 
@@ -142,7 +142,7 @@ export default function Sidebar({ active, onNav, onNewPost, onBroadcast, onModer
         ) : (
           <>
             {avatarUrl ? (
-              <img src={avatarUrl} alt={displayName} className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
+              <img src={avatarUrl} alt={displayName} className="w-9 h-9 rounded-full object-cover flex-shrink-0" style={{ objectPosition: objectPosition(profile?.avatar_position_x, profile?.avatar_position_y) }} />
             ) : (
               <div
                 className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold text-white"

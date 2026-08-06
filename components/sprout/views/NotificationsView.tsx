@@ -4,13 +4,15 @@ import { useState, useEffect, useCallback } from 'react';
 import { Heart, MessageCircle, UserPlus, Bell, MapPin } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
-import { formatName } from '@/lib/utils';
+import { formatName, objectPosition } from '@/lib/utils';
 
 interface RealNotification {
   id: string;
   type: 'like' | 'comment' | 'connect';
   actorName: string;
   actorAvatar: string;
+  actorAvatarPosX?: number;
+  actorAvatarPosY?: number;
   text: string;
   time: string;
   read: boolean;
@@ -103,11 +105,11 @@ export default function NotificationsView({ onGoToFeed, onGoToMatching, onGoToMe
     (connRaw ?? []).forEach((r: any) => actorIds.add(r.from_user_id));
 
     // Batch-fetch all actor profiles
-    const profileMap: Record<string, { first_name: string; last_initial: string; avatar_url: string }> = {};
+    const profileMap: Record<string, { first_name: string; last_initial: string; avatar_url: string; avatar_position_x?: number; avatar_position_y?: number }> = {};
     if (actorIds.size > 0) {
       const { data: profileRows } = await supabase
         .from('profiles')
-        .select('id, first_name, last_initial, avatar_url')
+        .select('id, first_name, last_initial, avatar_url, avatar_position_x, avatar_position_y')
         .in('id', Array.from(actorIds));
       (profileRows ?? []).forEach((p: any) => { profileMap[p.id] = p; });
     }
@@ -119,6 +121,8 @@ export default function NotificationsView({ onGoToFeed, onGoToMatching, onGoToMe
         type: 'like',
         actorName: formatName(actor?.first_name || '', actor?.last_initial) || 'Someone',
         actorAvatar: actor?.avatar_url || '',
+        actorAvatarPosX: actor?.avatar_position_x,
+        actorAvatarPosY: actor?.avatar_position_y,
         text: `liked your post "${truncate(postContentMap[r.post_id] || '')}"`,
         time: formatRelativeTime(r.created_at),
         read: false,
@@ -134,6 +138,8 @@ export default function NotificationsView({ onGoToFeed, onGoToMatching, onGoToMe
         type: 'comment',
         actorName: formatName(actor?.first_name || '', actor?.last_initial) || 'Someone',
         actorAvatar: actor?.avatar_url || '',
+        actorAvatarPosX: actor?.avatar_position_x,
+        actorAvatarPosY: actor?.avatar_position_y,
         text: `replied to your post: "${truncate(r.body || '')}"`,
         time: formatRelativeTime(r.created_at),
         read: false,
@@ -149,6 +155,8 @@ export default function NotificationsView({ onGoToFeed, onGoToMatching, onGoToMe
         type: 'connect',
         actorName: formatName(actor?.first_name || '', actor?.last_initial) || 'Someone',
         actorAvatar: actor?.avatar_url || '',
+        actorAvatarPosX: actor?.avatar_position_x,
+        actorAvatarPosY: actor?.avatar_position_y,
         text: 'wants to connect with you',
         time: formatRelativeTime(r.created_at),
         read: false,
@@ -193,7 +201,7 @@ export default function NotificationsView({ onGoToFeed, onGoToMatching, onGoToMe
       >
         <div className="relative flex-shrink-0">
           {n.actorAvatar ? (
-            <img src={n.actorAvatar} alt={n.actorName} className="w-11 h-11 rounded-full object-cover" />
+            <img src={n.actorAvatar} alt={n.actorName} className="w-11 h-11 rounded-full object-cover" style={{ objectPosition: objectPosition(n.actorAvatarPosX, n.actorAvatarPosY) }} />
           ) : (
             <div className="w-11 h-11 rounded-full flex items-center justify-center text-base font-bold" style={{ background: bg, color }}>
               {n.actorName.charAt(0)}

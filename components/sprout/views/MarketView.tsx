@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, MapPin, Heart, X, ChevronDown, ShoppingBag, CheckCircle, Trash2, ImagePlus, Loader2, Car, Moon, Tag, Gamepad2, Package, Utensils, Home, BookOpen, Box, Navigation } from 'lucide-react';
+import { Search, MapPin, Heart, X, ChevronDown, ShoppingBag, CheckCircle, Trash2, ImagePlus, Loader2, Car, Moon, Tag, Gamepad2, Package, Utensils, Home, BookOpen, Box, Navigation, Move } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import type { DbListing } from '@/lib/types';
-import { getCategoryStyle, formatLocation, haversineKm, kmToMiles } from '@/lib/utils';
+import { getCategoryStyle, formatLocation, haversineKm, kmToMiles, objectPosition } from '@/lib/utils';
+import ImageRepositioner from '@/components/sprout/ImageRepositioner';
 
 const DEMO_LISTINGS: never[] = [];
 
@@ -27,6 +28,7 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
 interface DisplayListing {
   id: string; title: string; price: number; condition: string; category: string;
   seller: string; neighborhood: string; postcode_district: string; image: string; saved: boolean;
+  imagePosX?: number; imagePosY?: number;
   sold: boolean; isDb?: boolean; isOwn?: boolean;
 }
 
@@ -55,6 +57,8 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
   const [newListing, setNewListing] = useState<NewListing>({ title: '', category: 'Toys', price: '', free: false, condition: 'good', description: '' });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
+  const [imagePos, setImagePos] = useState({ x: 50, y: 50 });
+  const [showReposition, setShowReposition] = useState(false);
   const [listError, setListError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -97,14 +101,18 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
     // Fetch first image for each listing
     const listingIds = data.map((l: any) => l.id);
     const imageMap: Record<string, string> = {};
+    const imagePosMap: Record<string, { x: number; y: number }> = {};
     if (listingIds.length > 0) {
       const { data: imageRows } = await supabase
         .from('listing_images')
-        .select('listing_id, url, position')
+        .select('listing_id, url, position, position_x, position_y')
         .in('listing_id', listingIds)
         .order('position', { ascending: true });
       (imageRows ?? []).forEach((img: any) => {
-        if (!imageMap[img.listing_id]) imageMap[img.listing_id] = img.url;
+        if (!imageMap[img.listing_id]) {
+          imageMap[img.listing_id] = img.url;
+          imagePosMap[img.listing_id] = { x: img.position_x ?? 50, y: img.position_y ?? 50 };
+        }
       });
     }
 
@@ -131,6 +139,8 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
         neighborhood: '',
         postcode_district: l.postcode_district,
         image: imageMap[l.id] || '',
+        imagePosX: imagePosMap[l.id]?.x,
+        imagePosY: imagePosMap[l.id]?.y,
         saved: savedIds.has(l.id), sold: l.status === 'sold',
         isDb: true, isOwn: l.seller_id === user.id,
       }));
@@ -235,6 +245,8 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
         listing_id: inserted.id,
         url: imageUrl,
         position: 0,
+        position_x: imagePos.x,
+        position_y: imagePos.y,
       });
     }
 
@@ -243,6 +255,7 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
     setNewListing({ title: '', category: 'Toys', price: '', free: false, condition: 'good', description: '' });
     setImageFile(null);
     setImagePreview('');
+    setImagePos({ x: 50, y: 50 });
     setListError('');
     setShowModal(false);
     await loadListings();
@@ -252,6 +265,7 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
     setNewListing({ title: '', category: 'Toys', price: '', free: false, condition: 'good', description: '' });
     setImageFile(null);
     setImagePreview('');
+    setImagePos({ x: 50, y: 50 });
     setListError('');
     setShowModal(true);
   }
@@ -345,7 +359,7 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
                   <span className="text-xs font-semibold" style={{ color: catStyle.color }}>{listing.category}</span>
                 </div>
               ) : (
-                <img src={listing.image} alt={listing.title} className={`w-full h-40 object-cover transition-transform duration-300 group-hover:scale-105 ${listing.sold ? 'opacity-60' : ''}`} />
+                <img src={listing.image} alt={listing.title} className={`w-full h-40 object-cover transition-transform duration-300 group-hover:scale-105 ${listing.sold ? 'opacity-60' : ''}`} style={{ objectPosition: objectPosition(listing.imagePosX, listing.imagePosY) }} />
               )}
               {listing.sold && (
                 <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.35)' }}>
@@ -411,15 +425,25 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
                 <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
                 {imagePreview ? (
                   <div className="relative rounded-xl overflow-hidden h-40">
-                    <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => { setImageFile(null); setImagePreview(''); if (fileInputRef.current) fileInputRef.current.value = ''; }}
-                      className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center"
-                      style={{ background: 'rgba(0,0,0,0.55)' }}
-                    >
-                      <X className="w-4 h-4 text-white" />
-                    </button>
+                    <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" style={{ objectPosition: objectPosition(imagePos.x, imagePos.y) }} />
+                    <div className="absolute top-2 right-2 flex gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowReposition(true)}
+                        className="w-7 h-7 rounded-full flex items-center justify-center"
+                        style={{ background: 'rgba(255,255,255,0.95)' }}
+                      >
+                        <Move className="w-4 h-4" style={{ color: '#5a4035' }} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setImageFile(null); setImagePreview(''); setImagePos({ x: 50, y: 50 }); if (fileInputRef.current) fileInputRef.current.value = ''; }}
+                        className="w-7 h-7 rounded-full flex items-center justify-center"
+                        style={{ background: 'rgba(0,0,0,0.55)' }}
+                      >
+                        <X className="w-4 h-4 text-white" />
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <button
@@ -501,6 +525,17 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
             </form>
           </div>
         </div>
+      )}
+      {showReposition && imagePreview && (
+        <ImageRepositioner
+          src={imagePreview}
+          initialX={imagePos.x}
+          initialY={imagePos.y}
+          shape="rect"
+          aspectRatio={4/3}
+          onSave={async (x, y) => { setImagePos({ x, y }); setShowReposition(false); }}
+          onClose={() => setShowReposition(false)}
+        />
       )}
     </div>
   );

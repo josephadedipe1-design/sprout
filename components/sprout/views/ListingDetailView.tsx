@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, MapPin, Heart, MessageCircle, Share2, CheckCircle, Trash2, Car, Moon, Tag, Gamepad2, Package, Utensils, Home, BookOpen, Box, ShoppingBag, Pencil, X, ImagePlus, Loader2, Send } from 'lucide-react';
+import { ArrowLeft, MapPin, Heart, MessageCircle, Share2, CheckCircle, Trash2, Car, Moon, Tag, Gamepad2, Package, Utensils, Home, BookOpen, Box, ShoppingBag, Pencil, X, ImagePlus, Loader2, Send, Move } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import type { DbListing, DbProfile } from '@/lib/types';
-import { getCategoryStyle, formatLocation } from '@/lib/utils';
+import { getCategoryStyle, formatLocation, objectPosition } from '@/lib/utils';
 import { sendNotificationEmail, truncatePreview } from '@/lib/notifications';
+import ImageRepositioner from '@/components/sprout/ImageRepositioner';
 
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
   Travel: Car, Sleep: Moon, Clothing: Tag, Toys: Gamepad2,
@@ -46,6 +47,8 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
   const [listing, setListing] = useState<FullListing | null>(null);
   const [primaryImageUrl, setPrimaryImageUrl] = useState('');
   const [primaryImageId, setPrimaryImageId] = useState<string | null>(null);
+  const [imagePos, setImagePos] = useState({ x: 50, y: 50 });
+  const [showReposition, setShowReposition] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -63,6 +66,8 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
   const [editForm, setEditForm] = useState({ title: '', description: '', price: '', free: false, condition: 'good', category: 'Toys' });
   const [editImageFile, setEditImageFile] = useState<File | null>(null);
   const [editImagePreview, setEditImagePreview] = useState('');
+  const [editImagePos, setEditImagePos] = useState({ x: 50, y: 50 });
+  const [showEditReposition, setShowEditReposition] = useState(false);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editError, setEditError] = useState('');
   const editFileRef = useRef<HTMLInputElement>(null);
@@ -79,13 +84,14 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
       if (data) {
         const [profileRes, imageRes, saveRes] = await Promise.all([
           supabase.from('profiles').select('*').eq('id', data.seller_id).maybeSingle(),
-          supabase.from('listing_images').select('id, url').eq('listing_id', listingId).order('position', { ascending: true }).limit(1).maybeSingle(),
+          supabase.from('listing_images').select('id, url, position_x, position_y').eq('listing_id', listingId).order('position', { ascending: true }).limit(1).maybeSingle(),
           user ? supabase.from('listing_saves').select('listing_id').eq('listing_id', listingId).eq('user_id', user.id).maybeSingle() : Promise.resolve({ data: null }),
         ]);
 
         setListing({ ...data, profiles: profileRes.data ?? null } as FullListing);
         setPrimaryImageUrl(imageRes.data?.url ?? '');
         setPrimaryImageId(imageRes.data?.id ?? null);
+        setImagePos({ x: imageRes.data?.position_x ?? 50, y: imageRes.data?.position_y ?? 50 });
         setSaved(!!saveRes.data);
 
         // Check connection status if logged in and not the owner
@@ -142,6 +148,7 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
     });
     setEditImageFile(null);
     setEditImagePreview('');
+    setEditImagePos({ x: imagePos.x, y: imagePos.y });
     setEditError('');
     setShowEdit(true);
   }
@@ -179,11 +186,15 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
 
     if (!error && newImageUrl) {
       if (primaryImageId) {
-        await supabase.from('listing_images').update({ url: newImageUrl }).eq('id', primaryImageId);
+        await supabase.from('listing_images').update({ url: newImageUrl, position_x: editImagePos.x, position_y: editImagePos.y }).eq('id', primaryImageId);
       } else {
-        await supabase.from('listing_images').insert({ listing_id: listing.id, url: newImageUrl, position: 0 });
+        await supabase.from('listing_images').insert({ listing_id: listing.id, url: newImageUrl, position: 0, position_x: editImagePos.x, position_y: editImagePos.y });
       }
       setPrimaryImageUrl(newImageUrl);
+      setImagePos(editImagePos);
+    } else if (!error && !newImageUrl && primaryImageId) {
+      await supabase.from('listing_images').update({ position_x: editImagePos.x, position_y: editImagePos.y }).eq('id', primaryImageId);
+      setImagePos(editImagePos);
     }
 
     setEditSubmitting(false);
@@ -290,7 +301,7 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
       return;
     }
 
-    /// Update last_message preview
+    // Update last_message preview
     await supabase.from('conversations').update({
       last_message: composerText.trim(),
       last_message_at: new Date().toISOString(),
@@ -354,7 +365,7 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
             src={primaryImageUrl}
             alt={listing.title}
             className={`w-full h-72 lg:h-96 object-cover ${isSold ? 'opacity-70' : ''}`}
-            style={{ borderRadius: '0 0 1.25rem 1.25rem' }}
+            style={{ borderRadius: '0 0 1.25rem 1.25rem', objectPosition: objectPosition(imagePos.x, imagePos.y) }}
           />
         ) : (
           <div
@@ -442,6 +453,15 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
         {isOwner && !isSold && (
           <div className="space-y-2 pt-2">
             <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#b8a090' }}>Manage your listing</p>
+            {hasRealImage && (
+              <button
+                onClick={() => setShowReposition(true)}
+                className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border font-semibold text-sm transition-all hover:opacity-80"
+                style={{ borderColor: 'var(--border-color)', color: '#7a6055', background: 'white' }}
+              >
+                <Move className="w-4 h-4" /> Reposition photo
+              </button>
+            )}
             <div className="flex gap-2">
               <button
                 onClick={openEdit}
@@ -589,7 +609,7 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
                 {/* Listing preview */}
                 <div className="flex items-center gap-3 p-3 rounded-xl border" style={{ background: '#fffcf8', borderColor: 'var(--border-color)' }}>
                   {hasRealImage ? (
-                    <img src={primaryImageUrl} alt={listing.title} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+                    <img src={primaryImageUrl} alt={listing.title} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" style={{ objectPosition: objectPosition(imagePos.x, imagePos.y) }} />
                   ) : (
                     <div className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: catStyle.bg }}>
                       <CategoryIcon className="w-6 h-6" style={{ color: catStyle.color, opacity: 0.8 }} />
@@ -651,18 +671,27 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
                   const EditCategoryIcon = CATEGORY_ICONS[editForm.category] ?? ShoppingBag;
                   const editCatStyle = { bg: 'var(--brand-light)', color: 'var(--brand)' };
                   return (
-                    <button type="button" onClick={() => editFileRef.current?.click()}
-                      className="w-full h-36 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-2 transition-colors hover:opacity-80 overflow-hidden"
-                      style={{ borderColor: 'var(--border-color)', background: editCurrentImg ? 'transparent' : editCatStyle.bg }}>
-                      {editCurrentImg ? (
-                        <img src={editCurrentImg} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        <>
-                          <EditCategoryIcon className="w-10 h-10" style={{ color: editCatStyle.color }} />
-                          <span className="text-xs font-medium" style={{ color: editCatStyle.color }}>Tap to add a photo</span>
-                        </>
+                    <div className="space-y-2">
+                      <button type="button" onClick={() => editFileRef.current?.click()}
+                        className="w-full h-36 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-2 transition-colors hover:opacity-80 overflow-hidden relative"
+                        style={{ borderColor: 'var(--border-color)', background: editCurrentImg ? 'transparent' : editCatStyle.bg }}>
+                        {editCurrentImg ? (
+                          <img src={editCurrentImg} alt="" className="w-full h-full object-cover" style={{ objectPosition: objectPosition(editImagePos.x, editImagePos.y) }} />
+                        ) : (
+                          <>
+                            <EditCategoryIcon className="w-10 h-10" style={{ color: editCatStyle.color }} />
+                            <span className="text-xs font-medium" style={{ color: editCatStyle.color }}>Tap to add a photo</span>
+                          </>
+                        )}
+                      </button>
+                      {editCurrentImg && (
+                        <button type="button" onClick={() => setShowEditReposition(true)}
+                          className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border font-semibold text-sm transition-all hover:opacity-80"
+                          style={{ borderColor: 'var(--border-color)', color: '#7a6055', background: 'white' }}>
+                          <Move className="w-4 h-4" /> Reposition photo
+                        </button>
                       )}
-                    </button>
+                    </div>
                   );
                 })()}
                 <input ref={editFileRef} type="file" accept="image/*" className="hidden"
@@ -670,6 +699,7 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
                     const f = e.target.files?.[0];
                     if (!f) return;
                     setEditImageFile(f);
+                    setEditImagePos({ x: 50, y: 50 });
                     const r = new FileReader();
                     r.onloadend = () => setEditImagePreview(r.result as string);
                     r.readAsDataURL(f);
@@ -742,6 +772,38 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
             </form>
           </div>
         </div>
+      )}
+
+      {showEditReposition && (editImagePreview || primaryImageUrl) && (
+        <ImageRepositioner
+          src={editImagePreview || primaryImageUrl}
+          initialX={editImagePos.x}
+          initialY={editImagePos.y}
+          shape="rect"
+          aspectRatio={4/3}
+          onSave={async (x, y) => { setEditImagePos({ x, y }); setShowEditReposition(false); }}
+          onClose={() => setShowEditReposition(false)}
+        />
+      )}
+
+      {showReposition && primaryImageUrl && (
+        <ImageRepositioner
+          src={primaryImageUrl}
+          initialX={imagePos.x}
+          initialY={imagePos.y}
+          shape="rect"
+          aspectRatio={4/3}
+          onSave={async (x, y) => {
+            if (!primaryImageId) return;
+            await supabase.from('listing_images').update({
+              position_x: x,
+              position_y: y,
+            }).eq('id', primaryImageId);
+            setImagePos({ x, y });
+            setShowReposition(false);
+          }}
+          onClose={() => setShowReposition(false)}
+        />
       )}
     </div>
   );

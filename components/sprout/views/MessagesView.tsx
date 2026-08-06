@@ -7,7 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import { sendNotificationEmail, truncatePreview } from '@/lib/notifications';
 import type { DbMessage, DbProfile } from '@/lib/types';
 import type { ListingSnap } from './ListingDetailView';
-import { formatLocation, formatName, getCategoryStyle } from '@/lib/utils';
+import { formatLocation, formatName, getCategoryStyle, objectPosition } from '@/lib/utils';
 import ReportModal, { type ReportTarget } from '@/components/sprout/ReportModal';
 import { blockUser } from '@/lib/blocks';
 
@@ -31,6 +31,8 @@ interface ConvDisplay {
   initiated_by: string | null;
   source_type: string | null;
   source_listing_id: string | null;
+  avatarPosX?: number;
+  avatarPosY?: number;
 }
 
 interface MsgDisplay {
@@ -180,6 +182,8 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
         id: c.id,
         name: formatName(other?.first_name || '', other?.last_initial) || 'Unknown',
         avatar: other?.avatar_url || '',
+        avatarPosX: other?.avatar_position_x,
+        avatarPosY: other?.avatar_position_y,
         lastMsg: c.last_message || 'No messages yet',
         time: c.last_message_at ? formatTime(c.last_message_at) : '',
         about: c.about,
@@ -513,7 +517,7 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
                     >
                       <div className="relative flex-shrink-0">
                         {c.avatar ? (
-                          <img src={c.avatar} alt={c.name} className="w-12 h-12 rounded-full object-cover opacity-70" />
+                          <img src={c.avatar} alt={c.name} className="w-12 h-12 rounded-full object-cover opacity-70" style={{ objectPosition: objectPosition(c.avatarPosX, c.avatarPosY) }} />
                         ) : (
                           <div className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold text-white opacity-70" style={{ background: 'var(--brand)' }}>
                             {c.name.charAt(0)}
@@ -566,7 +570,7 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
                     >
                       <div className="relative flex-shrink-0">
                         {c.avatar ? (
-                          <img src={c.avatar} alt={c.name} className="w-12 h-12 rounded-full object-cover" />
+                          <img src={c.avatar} alt={c.name} className="w-12 h-12 rounded-full object-cover" style={{ objectPosition: objectPosition(c.avatarPosX, c.avatarPosY) }} />
                         ) : (
                           <div className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold text-white" style={{ background: 'var(--brand)' }}>
                             {c.name.charAt(0)}
@@ -611,7 +615,7 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
                       {/* Sender info */}
                       <div className="flex items-center gap-3">
                         {c.avatar ? (
-                          <img src={c.avatar} alt={c.name} className="w-11 h-11 rounded-full object-cover flex-shrink-0" />
+                          <img src={c.avatar} alt={c.name} className="w-11 h-11 rounded-full object-cover flex-shrink-0" style={{ objectPosition: objectPosition(c.avatarPosX, c.avatarPosY) }} />
                         ) : (
                           <div className="w-11 h-11 rounded-full flex items-center justify-center font-bold text-white flex-shrink-0" style={{ background: 'var(--brand)' }}>
                             {c.name.charAt(0)}
@@ -684,7 +688,7 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
                 <ArrowLeft className="w-5 h-5" />
               </button>
               {activeConv.avatar ? (
-                <img src={activeConv.avatar} alt={activeConv.name} className="w-10 h-10 rounded-full object-cover" />
+                <img src={activeConv.avatar} alt={activeConv.name} className="w-10 h-10 rounded-full object-cover" style={{ objectPosition: objectPosition(activeConv.avatarPosX, activeConv.avatarPosY) }} />
               ) : (
                 <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white" style={{ background: 'var(--brand)' }}>
                   {activeConv.name.charAt(0)}
@@ -732,7 +736,7 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
               {messages.map((m) => (
                 <div key={m.id} className={`flex ${m.from === 'me' ? 'justify-end' : 'justify-start'}`}>
                   {m.from === 'them' && activeConv.avatar && (
-                    <img src={activeConv.avatar} alt="" className="w-7 h-7 rounded-full object-cover mr-2 mt-auto flex-shrink-0" />
+                    <img src={activeConv.avatar} alt="" className="w-7 h-7 rounded-full object-cover mr-2 mt-auto flex-shrink-0" style={{ objectPosition: objectPosition(activeConv.avatarPosX, activeConv.avatarPosY) }} />
                   )}
                   {m.from === 'them' && !activeConv.avatar && (
                     <div className="w-7 h-7 rounded-full mr-2 mt-auto flex-shrink-0 flex items-center justify-center text-xs font-bold text-white" style={{ background: 'var(--brand)' }}>
@@ -863,7 +867,7 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
                       style={{ borderColor: 'var(--border-color)' }}
                     >
                       {p.avatar_url ? (
-                        <img src={p.avatar_url} alt={p.first_name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                        <img src={p.avatar_url} alt={p.first_name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" style={{ objectPosition: objectPosition(p.avatar_position_x, p.avatar_position_y) }} />
                       ) : (
                         <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white text-sm flex-shrink-0" style={{ background: 'var(--brand)' }}>
                           {p.first_name.charAt(0)}

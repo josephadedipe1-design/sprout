@@ -123,3 +123,11 @@ export const CATEGORY_STYLES: Record<string, { bg: string; color: string }> = {
 export function getCategoryStyle(category: string): { bg: string; color: string } {
   return CATEGORY_STYLES[category] ?? { bg: '#f4f3f0', color: '#9a8070' };
 }
+
+/** Returns a CSS object-position string from stored focal-point percentages.
+ *  Falls back to centered (50% 50%) when values are missing or invalid. */
+export function objectPosition(x?: number | null, y?: number | null): string {
+  const xv = typeof x === 'number' && !isNaN(x) ? x : 50;
+  const yv = typeof y === 'number' && !isNaN(y) ? y : 50;
+  return `${xv}% ${yv}%`;
+}

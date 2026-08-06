@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Search, ArrowLeft, MapPin, Clock, TrendingUp, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { DbProfile } from '@/lib/types';
-import { formatLocation, formatName } from '@/lib/utils';
+import { formatLocation, formatName, objectPosition } from '@/lib/utils';
 
 const TRENDING = ['Pediatric dentist', 'Sleep regression', 'Playgroup', 'Baby carrier', 'First foods'];
 
@@ -195,7 +195,7 @@ export default function SearchView({ onBack }: SearchViewProps) {
                 {results.profiles.map((p) => (
                   <div key={p.id} className="card-sprout p-3 flex items-center gap-3">
                     {p.avatar_url ? (
-                      <img src={p.avatar_url} alt={p.first_name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                      <img src={p.avatar_url} alt={p.first_name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" style={{ objectPosition: objectPosition(p.avatar_position_x, p.avatar_position_y) }} />
                     ) : (
                       <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0" style={{ background: 'var(--brand)' }}>
                         {p.first_name.charAt(0).toUpperCase()}

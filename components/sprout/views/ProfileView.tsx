@@ -5,7 +5,7 @@ import { MapPin, Edit3, Settings, Heart, FileText, ShoppingBag, UserPlus, Baby, 
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { fetchUserInterests } from '@/lib/profiles';
-import { formatLocation } from '@/lib/utils';
+import { formatLocation, objectPosition } from '@/lib/utils';
 
 interface ActivityItem {
   id: string;
@@ -147,7 +147,7 @@ export default function ProfileView({ onEditProfile, onSettings }: ProfileViewPr
             src={avatarUrl}
             alt={displayName}
             className="w-20 h-20 rounded-full object-cover flex-shrink-0 border-2"
-            style={{ borderColor: 'var(--border-color)' }}
+            style={{ borderColor: 'var(--border-color)', objectPosition: objectPosition(profile?.avatar_position_x, profile?.avatar_position_y) }}
           />
         ) : (
           <div

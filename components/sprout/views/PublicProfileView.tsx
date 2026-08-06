@@ -6,7 +6,7 @@ import { Profile } from '@/lib/profiles';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { sendNotificationEmail } from '@/lib/notifications';
-import { formatLocation } from '@/lib/utils';
+import { formatLocation, objectPosition } from '@/lib/utils';
 import ReportModal, { type ReportTarget } from '@/components/sprout/ReportModal';
 import { blockUser, isUserBlockedByMe } from '@/lib/blocks';
 
@@ -89,8 +89,8 @@ export default function PublicProfileView({ profile, onBack, onConnect, onMessag
         <img
           src={profile.avatar}
           alt={profile.name}
-          className="w-20 h-20 rounded-full object-cover object-top flex-shrink-0 border-2"
-          style={{ borderColor: 'var(--border-color)' }}
+          className="w-20 h-20 rounded-full object-cover flex-shrink-0 border-2"
+          style={{ borderColor: 'var(--border-color)', objectPosition: objectPosition(profile.avatarPosX, profile.avatarPosY) }}
         />
         <div className="flex-1 min-w-0 pt-1">
           <h1 className="text-xl font-bold" style={{ color: '#2a1f18' }}>{profile.name}, {profile.age}</h1>

@@ -10,6 +10,8 @@ export interface Profile {
   bio: string;
   interests: string[];
   avatar: string;
+  avatarPosX?: number;
+  avatarPosY?: number;
   mutual: number;
   distanceMiles: number;
   expecting: boolean;

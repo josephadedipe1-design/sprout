@@ -8,7 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { sendNotificationEmail } from '@/lib/notifications';
 import type { DbProfile, EnrichedProfile, EnrichedDbProfile, DbConnection } from '@/lib/types';
-import { formatLocation, formatName, haversineKm, kmToMiles } from '@/lib/utils';
+import { formatLocation, formatName, haversineKm, kmToMiles, objectPosition } from '@/lib/utils';
 
 type Tab = 'discover' | 'connections' | 'requests';
 
@@ -243,6 +243,8 @@ export default function MatchingView({ onViewProfile, initialTab }: MatchingView
       bio: p.bio,
       interests: p.interests ?? [],
       avatar: p.avatar_url,
+      avatarPosX: p.avatar_position_x,
+      avatarPosY: p.avatar_position_y,
       mutual: 0,
       distanceMiles: (myProfile?.lat && myProfile?.lng && p.lat && p.lng)
         ? Math.round(haversineKm(myProfile.lat, myProfile.lng, p.lat, p.lng) * 0.621371 * 10) / 10
@@ -314,7 +316,7 @@ export default function MatchingView({ onViewProfile, initialTab }: MatchingView
                 className="w-full card-sprout p-4 flex items-center gap-3 text-left transition-all hover:shadow-md"
               >
                 {rc.profile.avatar_url ? (
-                  <img src={rc.profile.avatar_url} alt={rc.profile.first_name} className="w-12 h-12 rounded-full object-cover object-top flex-shrink-0" />
+                  <img src={rc.profile.avatar_url} alt={rc.profile.first_name} className="w-12 h-12 rounded-full object-cover flex-shrink-0" style={{ objectPosition: objectPosition(rc.profile.avatar_position_x, rc.profile.avatar_position_y) }} />
                 ) : (
                   <div className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold text-white flex-shrink-0" style={{ background: 'var(--brand)' }}>
                     {rc.profile.first_name.charAt(0)}
@@ -360,7 +362,7 @@ export default function MatchingView({ onViewProfile, initialTab }: MatchingView
                     <div className="flex items-start gap-3 mb-3">
                       <div className="flex-shrink-0">
                         {rr.profile.avatar_url ? (
-                          <img src={rr.profile.avatar_url} alt={rr.profile.first_name} className="w-12 h-12 rounded-full object-cover" />
+                          <img src={rr.profile.avatar_url} alt={rr.profile.first_name} className="w-12 h-12 rounded-full object-cover" style={{ objectPosition: objectPosition(rr.profile.avatar_position_x, rr.profile.avatar_position_y) }} />
                         ) : (
                           <div className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold text-white" style={{ background: 'var(--brand)' }}>
                             {rr.profile.first_name.charAt(0)}
@@ -416,7 +418,7 @@ export default function MatchingView({ onViewProfile, initialTab }: MatchingView
                 {sentRequests.map(sr => (
                   <div key={sr.id} className="card-sprout p-4 flex items-center gap-3">
                     {sr.profile.avatar_url ? (
-                      <img src={sr.profile.avatar_url} alt={sr.profile.first_name} className="w-11 h-11 rounded-full object-cover flex-shrink-0" />
+                      <img src={sr.profile.avatar_url} alt={sr.profile.first_name} className="w-11 h-11 rounded-full object-cover flex-shrink-0" style={{ objectPosition: objectPosition(sr.profile.avatar_position_x, sr.profile.avatar_position_y) }} />
                     ) : (
                       <div className="w-11 h-11 rounded-full flex items-center justify-center text-base font-bold text-white flex-shrink-0" style={{ background: 'var(--brand)' }}>
                         {sr.profile.first_name.charAt(0)}
@@ -524,8 +526,8 @@ export default function MatchingView({ onViewProfile, initialTab }: MatchingView
                       <img
                         src={current.avatar_url}
                         alt={current.first_name}
-                        className="w-16 h-16 rounded-2xl object-cover object-top flex-shrink-0"
-                        style={{ border: '2px solid var(--border-color)' }}
+                        className="w-16 h-16 rounded-2xl object-cover flex-shrink-0"
+                        style={{ border: '2px solid var(--border-color)', objectPosition: objectPosition(current.avatar_position_x, current.avatar_position_y) }}
                       />
                     ) : (
                       <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-bold text-white flex-shrink-0" style={{ background: 'var(--brand)' }}>

@@ -11,6 +11,8 @@ export interface DbProfile {
   last_initial: string;
   bio: string;
   avatar_url: string;
+  avatar_position_x?: number;
+  avatar_position_y?: number;
   parent_type: string;
   postcode: string;
   postcode_district?: string;
@@ -97,4 +99,14 @@ export interface DbConnection {
   created_at: string;
   from_user?: DbProfile | null;
   to_user?: DbProfile | null;
+}
+
+export interface DbListingImage {
+  id: string;
+  listing_id: string;
+  url: string;
+  position: number;
+  position_x?: number;
+  position_y?: number;
+  created_at?: string;
 }

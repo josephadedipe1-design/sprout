@@ -8,7 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { sendNotificationEmail, truncatePreview } from '@/lib/notifications';
 import type { DbProfile, DbListing } from '@/lib/types';
-import { getCategoryStyle, formatLocation, formatName, haversineKm, kmToMiles } from '@/lib/utils';
+import { getCategoryStyle, formatLocation, formatName, haversineKm, kmToMiles, objectPosition } from '@/lib/utils';
 import ReportModal, { type ReportTarget } from '@/components/sprout/ReportModal';
 
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
@@ -217,11 +217,11 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
 
     if (listingsData) {
       const sellerIds = Array.from(new Set((listingsData as DbListing[]).map(l => l.seller_id).filter(Boolean)));
-      const sellerProfileMap: Record<string, { first_name: string; last_initial: string; avatar_url: string; postcode_district: string; lat: number | null; lng: number | null }> = {};
+      const sellerProfileMap: Record<string, { first_name: string; last_initial: string; avatar_url: string; avatar_position_x?: number; avatar_position_y?: number; postcode_district: string; lat: number | null; lng: number | null }> = {};
       if (sellerIds.length > 0) {
         const { data: sellerRows } = await supabase
           .from('profiles')
-          .select('id, first_name, last_initial, avatar_url, postcode_district, lat, lng')
+          .select('id, first_name, last_initial, avatar_url, avatar_position_x, avatar_position_y, postcode_district, lat, lng')
           .in('id', sellerIds);
         (sellerRows ?? []).forEach((p: any) => { sellerProfileMap[p.id] = p; });
       }
@@ -239,14 +239,18 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
 
       const listingIds = filteredListings.map(l => l.id);
       const imageMap: Record<string, string> = {};
+      const imagePosMap: Record<string, { x: number; y: number }> = {};
       if (listingIds.length > 0) {
         const { data: imageRows } = await supabase
           .from('listing_images')
-          .select('listing_id, url, position')
+          .select('listing_id, url, position, position_x, position_y')
           .in('listing_id', listingIds)
           .order('position', { ascending: true });
         (imageRows ?? []).forEach((img: any) => {
-          if (!imageMap[img.listing_id]) imageMap[img.listing_id] = img.url;
+          if (!imageMap[img.listing_id]) {
+            imageMap[img.listing_id] = img.url;
+            imagePosMap[img.listing_id] = { x: img.position_x ?? 50, y: img.position_y ?? 50 };
+          }
         });
       }
       setFeedListings(filteredListings.map(l => ({
@@ -263,8 +267,12 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
         seller_first_name: sellerProfileMap[l.seller_id]?.first_name || 'Community Member',
         seller_last_initial: sellerProfileMap[l.seller_id]?.last_initial || '',
         seller_avatar: sellerProfileMap[l.seller_id]?.avatar_url || '',
+        seller_avatar_pos_x: sellerProfileMap[l.seller_id]?.avatar_position_x,
+        seller_avatar_pos_y: sellerProfileMap[l.seller_id]?.avatar_position_y,
         seller_postcode_district: sellerProfileMap[l.seller_id]?.postcode_district || l.postcode_district,
         image_url: imageMap[l.id] || '',
+        image_pos_x: imagePosMap[l.id]?.x,
+        image_pos_y: imagePosMap[l.id]?.y,
       })));
     }
 
@@ -331,11 +339,11 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
       .eq('post_id', postId)
       .order('created_at', { ascending: true });
     const authorIds = Array.from(new Set((replyRows ?? []).map((r: any) => r.author_id)));
-    const profileMap: Record<string, { first_name: string; avatar_url: string }> = {};
+    const profileMap: Record<string, { first_name: string; avatar_url: string; avatar_position_x?: number; avatar_position_y?: number }> = {};
     if (authorIds.length > 0) {
       const { data: profileRows } = await supabase
         .from('profiles')
-        .select('id, first_name, avatar_url')
+        .select('id, first_name, avatar_url, avatar_position_x, avatar_position_y')
         .in('id', authorIds);
       (profileRows ?? []).forEach((p: any) => { profileMap[p.id] = p; });
     }
@@ -345,6 +353,8 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
       created_at: r.created_at,
       author_first_name: profileMap[r.author_id]?.first_name || 'Community Member',
       author_avatar: profileMap[r.author_id]?.avatar_url || '',
+      author_avatar_pos_x: profileMap[r.author_id]?.avatar_position_x,
+      author_avatar_pos_y: profileMap[r.author_id]?.avatar_position_y,
     }));
     setRepliesMap(prev => ({ ...prev, [postId]: items }));
     setRepliesLoadingMap(prev => ({ ...prev, [postId]: false }));
@@ -577,7 +587,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
                   {/* Seller header */}
                   <div className="flex items-center gap-2.5 p-4 pb-3">
                     {listing.seller_avatar ? (
-                      <img src={listing.seller_avatar} alt={listing.seller_first_name} className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
+                      <img src={listing.seller_avatar} alt={listing.seller_first_name} className="w-9 h-9 rounded-full object-cover flex-shrink-0" style={{ objectPosition: objectPosition((listing as any).seller_avatar_pos_x, (listing as any).seller_avatar_pos_y) }} />
                     ) : (
                       <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0" style={{ background: 'var(--brand)' }}>
                         {listing.seller_first_name.charAt(0)}
@@ -595,7 +605,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
 
                   {/* Listing image or icon */}
                   {listing.image_url ? (
-                    <img src={listing.image_url} alt={listing.title} className={`w-full h-48 object-cover ${isSold ? 'opacity-60' : ''}`} />
+                    <img src={listing.image_url} alt={listing.title} className={`w-full h-48 object-cover ${isSold ? 'opacity-60' : ''}`} style={{ objectPosition: objectPosition((listing as any).image_pos_x, (listing as any).image_pos_y) }} />
                   ) : (
                     <div className="w-full h-32 flex flex-col items-center justify-center gap-2" style={{ background: catStyle.bg, opacity: isSold ? 0.6 : 1 }}>
                       <CategoryIcon className="w-10 h-10" style={{ color: catStyle.color, opacity: 0.8 }} />
@@ -645,7 +655,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
                           <Leaf className="w-5 h-5 text-white" />
                         </div>
                       ) : authorAvatar ? (
-                        <img src={authorAvatar} alt={authorName} className="w-10 h-10 rounded-full object-cover" />
+                        <img src={authorAvatar} alt={authorName} className="w-10 h-10 rounded-full object-cover" style={{ objectPosition: objectPosition(post.profile?.avatar_position_x, post.profile?.avatar_position_y) }} />
                       ) : (
                         <div
                           className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold"
@@ -762,7 +772,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
                             {(repliesMap[post.id] ?? []).map(r => (
                               <div key={r.id} className="flex gap-2">
                                 {r.author_avatar ? (
-                                  <img src={r.author_avatar} alt={r.author_first_name} className="w-7 h-7 rounded-full object-cover flex-shrink-0 mt-0.5" />
+                                  <img src={r.author_avatar} alt={r.author_first_name} className="w-7 h-7 rounded-full object-cover flex-shrink-0 mt-0.5" style={{ objectPosition: objectPosition((r as any).author_avatar_pos_x, (r as any).author_avatar_pos_y) }} />
                                 ) : (
                                   <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0 mt-0.5" style={{ background: 'var(--brand)' }}>
                                     {r.author_first_name.charAt(0)}
@@ -781,7 +791,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
                         )}
                         <div className="flex items-center gap-2">
                           {profile?.avatar_url ? (
-                            <img src={profile.avatar_url} alt="Me" className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
+                            <img src={profile.avatar_url} alt="Me" className="w-7 h-7 rounded-full object-cover flex-shrink-0" style={{ objectPosition: objectPosition(profile?.avatar_position_x, profile?.avatar_position_y) }} />
                           ) : (
                             <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0" style={{ background: 'var(--brand)' }}>
                               {(profile?.first_name ?? 'Y').charAt(0)}
