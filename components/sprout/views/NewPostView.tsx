@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ArrowLeft, MapPin, X, Shield } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
@@ -30,6 +30,17 @@ export default function NewPostView({ onBack, onPublish, onListInMarket }: NewPo
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState('');
   const [safetyDismissed, setSafetyDismissed] = useState(false);
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
+
+  useEffect(() => {
+    if (cooldownRemaining <= 0) return;
+    const timer = setInterval(() => {
+      setCooldownRemaining((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [cooldownRemaining]);
+
+  const onCooldown = cooldownRemaining > 0;
 
   function toggleTag(t: string) {
     setSelectedTags((prev) => prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]);
@@ -50,9 +61,15 @@ export default function NewPostView({ onBack, onPublish, onListInMarket }: NewPo
 
     if (insertError) {
       console.error('Post insert error:', insertError);
-      setError(insertError.message || 'Failed to publish. Please try again.');
+      const msg = insertError.message || '';
+      if (msg.includes('row-level security') || msg.includes('policy')) {
+        setError("You're posting a bit fast — please wait a moment and try again.");
+      } else {
+        setError(msg || 'Failed to publish. Please try again.');
+      }
       setPublishing(false);
     } else {
+      setCooldownRemaining(30);
       onPublish();
     }
   }
@@ -173,11 +190,11 @@ export default function NewPostView({ onBack, onPublish, onListInMarket }: NewPo
 
           <button
             className="btn-brand w-full text-base mt-2"
-            disabled={!content.trim() || publishing}
+            disabled={!content.trim() || publishing || onCooldown}
             onClick={handlePublish}
-            style={{ opacity: content.trim() && !publishing ? 1 : 0.5 }}
+            style={{ opacity: content.trim() && !publishing && !onCooldown ? 1 : 0.5 }}
           >
-            {publishing ? 'Publishing…' : 'Publish Post'}
+            {publishing ? 'Publishing…' : onCooldown ? `Wait ${cooldownRemaining}s…` : 'Publish Post'}
           </button>
         </div>
       )}
