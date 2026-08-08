@@ -44,16 +44,14 @@ export default function PrivacyPage() {
             },
             {
               title: '6. Third-Party Services',
-              body: `Sprout is built on Supabase (database and authentication) and hosted on Netlify. These providers process data on our behalf under their own privacy policies and security standards. Profile photos may be served via Pexels (stock images) or Supabase Storage.`,
+              body: `Sprout uses the following third-party providers to operate the service: Supabase (database, authentication, and file storage), Vercel (application hosting), Resend (sending transactional emails such as notifications and account verification), and Sentry (error monitoring, to help us detect and fix bugs). These providers process data on our behalf under their own privacy policies and security standards, and may store or process data outside the UK — where this happens, we rely on appropriate safeguards such as Standard Contractual Clauses to protect your data.`,
             },
             {
               title: '7. Your Rights',
-              body: `You have the right to access, correct, or delete your personal data at any time. You can update your profile in the app, adjust privacy settings, or delete your account entirely from Settings. For other data requests, contact us at privacy@sprout-village.co.uk.`,
-            },
+              body: `We process your personal data on the basis of your consent (when you sign up and use Sprout) and our legitimate interest in providing and improving a safe community platform. You have the right to access, correct, or delete your personal data at any time. You can update your profile in the app, adjust privacy settings, or delete your account entirely from Settings. For other data requests, contact us at privacy@sprout-village.co.uk. If you are unhappy with how we handle your data, you also have the right to complain to the UK Information Commissioner's Office (ICO) at ico.org.uk.`,
             {
               title: '8. Children',
-              body: `Sprout is designed for parents and expecting parents aged 18 and over. We do not knowingly collect information from anyone under 18. If you believe a minor has created an account, please contact us.`,
-            },
+              body: `Sprout accounts are only for parents and expecting parents aged 18 and over — we do not knowingly allow anyone under 18 to create an account. However, because Sprout is a parenting community, users may share information about their children within posts, listings, or profile details (such as a child's age or a photo of an item for sale). We treat this information with particular care and it is only ever shared at the discretion of the parent posting it. If you believe a minor has created an account, or that a child's information has been shared inappropriately, please contact us immediately at privacy@sprout-village.co.uk.`,
             {
               title: '9. Changes',
               body: `We may update this Privacy Policy from time to time. We will notify you of significant changes via the app. Continued use of Sprout after changes take effect constitutes acceptance of the updated policy.`,
