@@ -10,6 +10,8 @@ interface AuthContextValue {
   profile: EnrichedDbProfile | null;
   loading: boolean;
   emailConfirmed: boolean;
+  profileSetupInProgress: boolean;
+  setProfileSetupInProgress: (v: boolean) => void;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -19,6 +21,8 @@ const AuthContext = createContext<AuthContextValue>({
   profile: null,
   loading: true,
   emailConfirmed: false,
+  profileSetupInProgress: false,
+  setProfileSetupInProgress: () => {},
   signOut: async () => {},
   refreshProfile: async () => {},
 });
@@ -28,6 +32,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<EnrichedDbProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [emailConfirmed, setEmailConfirmed] = useState(false);
+  const [profileSetupInProgress, setProfileSetupInProgress] = useState(false);
 
   const loadProfile = useCallback(async (userId: string) => {
     const [profileRes, interestsRes] = await Promise.all([
@@ -80,7 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, emailConfirmed, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ user, profile, loading, emailConfirmed, profileSetupInProgress, setProfileSetupInProgress, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

@@ -41,7 +41,7 @@ type SubView =
 function AppContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, loading: authLoading, refreshProfile, emailConfirmed } = useAuth();
+  const { user, loading: authLoading, refreshProfile, emailConfirmed, setProfileSetupInProgress } = useAuth();
   const [mainView, setMainView] = useState<MainView>('feed');
   const [subView, setSubView] = useState<SubView>(null);
   const [feedRefreshKey, setFeedRefreshKey] = useState(0);
@@ -126,6 +126,7 @@ function AppContent() {
       const PENDING_PROFILE_KEY = 'sprout_pending_profile';
       const raw = localStorage.getItem(PENDING_PROFILE_KEY);
       if (raw) {
+        setProfileSetupInProgress(true);
         (async () => {
           try {
             const data = JSON.parse(raw) as Record<string, unknown>;
@@ -207,9 +208,11 @@ function AppContent() {
             }
 
             localStorage.removeItem(PENDING_PROFILE_KEY);
-            refreshProfile();
+            await refreshProfile();
+            setProfileSetupInProgress(false);
           } catch (err) {
             console.error('Failed to save pending profile:', err);
+            setProfileSetupInProgress(false);
           }
         })();
       }

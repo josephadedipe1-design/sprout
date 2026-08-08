@@ -29,7 +29,7 @@ const NAV = [
 ] as const;
 
 export default function Sidebar({ active, onNav, onNewPost, onBroadcast, onModeration, hasUnread = false, unreadMessages = 0 }: SidebarProps) {
-  const { profile, signOut, user, loading } = useAuth();
+  const { profile, signOut, user, loading, profileSetupInProgress } = useAuth();
   const router = useRouter();
   const isAdmin = user?.id === ADMIN_ID;
 
@@ -131,7 +131,7 @@ export default function Sidebar({ active, onNav, onNewPost, onBroadcast, onModer
 
       {/* User */}
       <div className="px-4 py-4 border-t flex items-center gap-3" style={{ borderColor: 'var(--border-color)' }}>
-        {loading && !profile ? (
+        {(loading && !profile) || profileSetupInProgress ? (
           <>
             <div className="w-9 h-9 rounded-full bg-stone-200 animate-pulse flex-shrink-0" />
             <div className="flex-1 min-w-0 space-y-2">
