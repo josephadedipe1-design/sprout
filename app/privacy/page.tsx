@@ -18,7 +18,7 @@ export default function PrivacyPage() {
         </div>
 
         <h1 className="text-3xl font-extrabold mb-2" style={{ color: '#2a1f18' }}>Privacy Policy</h1>
-        <p className="text-sm mb-8" style={{ color: '#9a8070' }}>Last updated: July 2026</p>
+        <p className="text-sm mb-8" style={{ color: '#9a8070' }}>Last updated: August 2026</p>
 
         <div className="space-y-8 text-sm leading-relaxed" style={{ color: '#4a3828' }}>
           {[
@@ -49,9 +49,11 @@ export default function PrivacyPage() {
             {
               title: '7. Your Rights',
               body: `We process your personal data on the basis of your consent (when you sign up and use Sprout) and our legitimate interest in providing and improving a safe community platform. You have the right to access, correct, or delete your personal data at any time. You can update your profile in the app, adjust privacy settings, or delete your account entirely from Settings. For other data requests, contact us at privacy@sprout-village.co.uk. If you are unhappy with how we handle your data, you also have the right to complain to the UK Information Commissioner's Office (ICO) at ico.org.uk.`,
+            },
             {
               title: '8. Children',
               body: `Sprout accounts are only for parents and expecting parents aged 18 and over — we do not knowingly allow anyone under 18 to create an account. However, because Sprout is a parenting community, users may share information about their children within posts, listings, or profile details (such as a child's age or a photo of an item for sale). We treat this information with particular care and it is only ever shared at the discretion of the parent posting it. If you believe a minor has created an account, or that a child's information has been shared inappropriately, please contact us immediately at privacy@sprout-village.co.uk.`,
+            },
             {
               title: '9. Changes',
               body: `We may update this Privacy Policy from time to time. We will notify you of significant changes via the app. Continued use of Sprout after changes take effect constitutes acceptance of the updated policy.`,
