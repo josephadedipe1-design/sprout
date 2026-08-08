@@ -518,8 +518,8 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
       {/* Unified feed */}
       {!loading && (
         <div className="space-y-4">
-          {/* Sprout welcome post — shown for new users in their first 72h */}
-          {isNewUser && activeFilter === 'All' && (
+          {/* General welcome post — shown for new users in their first 72h who are NOT the first in their area */}
+          {isNewUser && !isFirstInArea && activeFilter === 'All' && (
             <article className="card-sprout overflow-hidden">
               <div className="p-4">
                 <div className="flex items-start justify-between mb-3">
@@ -529,17 +529,46 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
                     </div>
                     <div>
                       <p className="text-sm font-semibold" style={{ color: '#2a1f18' }}>Sprout</p>
-                      <p className="text-xs" style={{ color: '#9a8070' }}>just now</p>
+                      <div className="flex items-center gap-1 text-xs" style={{ color: '#9a8070' }}>
+                        {areaName && <><MapPin className="w-3 h-3" />{areaName} · </>}
+                        just now
+                      </div>
                     </div>
                   </div>
                   <span className="tag-sprout" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>Welcome</span>
                 </div>
+
                 <p className="text-sm font-semibold mb-1.5" style={{ color: '#2a1f18' }}>
-                  Welcome to Sprout{profile?.first_name ? `, ${profile.first_name}` : ''}!
+                  Welcome to Sprout{areaName ? `, ${areaName}` : profile?.first_name ? `, ${profile.first_name}` : ''}!
                 </p>
-                <p className="text-sm leading-relaxed" style={{ color: '#3a2820', lineHeight: 1.6 }}>
-                  We&apos;re so glad you&apos;re here. This is your community feed — a place to ask questions, share tips, find meetups, and support other parents nearby. Dive in and say hello!
+                <p className="text-sm leading-relaxed mb-3" style={{ color: '#3a2820', lineHeight: 1.6 }}>
+                  You&apos;ve joined parents near you on Sprout. Say hello, browse the marketplace, or share what&apos;s on your mind.
                 </p>
+
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                  {['Community', 'LocalParents', 'ShareSprout'].map(tag => (
+                    <span key={tag} className="text-xs px-2.5 py-1 rounded-full" style={{ background: '#f4f3f0', color: '#7a6055' }}>#{tag}</span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center border-t px-4 py-2.5" style={{ borderColor: 'var(--border-color)' }}>
+                <button
+                  onClick={copyInvite}
+                  className="flex items-center gap-1.5 text-sm mr-5 transition-colors font-medium"
+                  style={{ color: copied ? 'var(--brand)' : '#9a8070' }}
+                >
+                  {copied ? <CheckIcon className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  {copied ? 'Copied!' : 'Copy invite'}
+                </button>
+                <button
+                  onClick={shareInvite}
+                  className="flex items-center gap-1.5 text-sm font-medium transition-opacity hover:opacity-70"
+                  style={{ color: '#9a8070' }}
+                >
+                  <Share2 className="w-4 h-4" />
+                  Share
+                </button>
               </div>
             </article>
           )}

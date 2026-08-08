@@ -21,9 +21,10 @@ interface RealConnection {
 interface MatchingViewProps {
   onViewProfile: (profile: Profile, connected?: boolean, pendingRequest?: boolean) => void;
   initialTab?: Tab;
+  hasNearbyJoinNotif?: boolean;
 }
 
-export default function MatchingView({ onViewProfile, initialTab }: MatchingViewProps) {
+export default function MatchingView({ onViewProfile, initialTab, hasNearbyJoinNotif = false }: MatchingViewProps) {
   const { user, profile: myProfile } = useAuth();
   const [tab, setTab] = useState<Tab>(initialTab ?? 'connections');
 
@@ -261,9 +262,9 @@ export default function MatchingView({ onViewProfile, initialTab }: MatchingView
   const remaining = discoverQueue.length - discoverIdx;
 
   const TABS = [
-    { id: 'connections' as Tab, label: 'My Village', icon: Users, count: totalConnections },
-    { id: 'requests' as Tab, label: 'Requests', icon: UserPlus, count: totalRequests },
-    { id: 'discover' as Tab, label: 'Discover', icon: Compass, count: 0 },
+    { id: 'connections' as Tab, label: 'My Village', icon: Users, count: totalConnections, badge: false },
+    { id: 'requests' as Tab, label: 'Requests', icon: UserPlus, count: totalRequests, badge: false },
+    { id: 'discover' as Tab, label: 'Discover', icon: Compass, count: 0, badge: hasNearbyJoinNotif },
   ];
 
   return (
@@ -274,11 +275,11 @@ export default function MatchingView({ onViewProfile, initialTab }: MatchingView
       </div>
 
       <div className="flex gap-1 p-1 rounded-xl mb-6" style={{ background: '#f4f3f0' }}>
-        {TABS.map(({ id, label, icon: Icon, count }) => (
+        {TABS.map(({ id, label, icon: Icon, count, badge }) => (
           <button
             key={id}
             onClick={() => setTab(id)}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-semibold transition-all"
+            className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-semibold transition-all relative"
             style={{
               background: tab === id ? 'white' : 'transparent',
               color: tab === id ? '#2a1f18' : '#9a8070',
@@ -291,6 +292,9 @@ export default function MatchingView({ onViewProfile, initialTab }: MatchingView
               <span className="text-xs font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: 'var(--brand)', fontSize: '0.6rem', lineHeight: 1 }}>
                 {count}
               </span>
+            )}
+            {badge && (
+              <span className="absolute top-1 right-2 w-2.5 h-2.5 rounded-full" style={{ background: '#E53E3E' }} />
             )}
           </button>
         ))}

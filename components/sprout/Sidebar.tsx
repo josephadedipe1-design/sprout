@@ -17,6 +17,7 @@ interface SidebarProps {
   onModeration?: () => void;
   hasUnread?: boolean;
   unreadMessages?: number;
+  hasNearbyJoinNotif?: boolean;
 }
 
 const NAV = [
@@ -28,7 +29,7 @@ const NAV = [
   { id: 'profile',       icon: User,          label: 'Profile' },
 ] as const;
 
-export default function Sidebar({ active, onNav, onNewPost, onBroadcast, onModeration, hasUnread = false, unreadMessages = 0 }: SidebarProps) {
+export default function Sidebar({ active, onNav, onNewPost, onBroadcast, onModeration, hasUnread = false, unreadMessages = 0, hasNearbyJoinNotif = false }: SidebarProps) {
   const { profile, signOut, user, loading, profileSetupInProgress } = useAuth();
   const router = useRouter();
   const isAdmin = user?.id === ADMIN_ID;
@@ -86,6 +87,12 @@ export default function Sidebar({ active, onNav, onNewPost, onBroadcast, onModer
               <Icon className="w-5 h-5 flex-shrink-0" />
               {label}
               {id === 'notifications' && hasUnread && (
+                <span
+                  className="ml-auto w-2.5 h-2.5 rounded-full flex-shrink-0"
+                  style={{ background: '#E53E3E' }}
+                />
+              )}
+              {id === 'matching' && hasNearbyJoinNotif && (
                 <span
                   className="ml-auto w-2.5 h-2.5 rounded-full flex-shrink-0"
                   style={{ background: '#E53E3E' }}

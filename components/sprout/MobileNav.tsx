@@ -9,6 +9,7 @@ interface MobileNavProps {
   onNav: (v: View) => void;
   hasUnread?: boolean;
   unreadMessages?: number;
+  hasNearbyJoinNotif?: boolean;
 }
 
 const NAV = [
@@ -20,7 +21,7 @@ const NAV = [
   { id: 'profile',       icon: User,          label: 'Profile' },
 ] as const;
 
-export default function MobileNav({ active, onNav, hasUnread = false, unreadMessages = 0 }: MobileNavProps) {
+export default function MobileNav({ active, onNav, hasUnread = false, unreadMessages = 0, hasNearbyJoinNotif = false }: MobileNavProps) {
   return (
     <nav
       className="lg:hidden fixed bottom-0 left-0 right-0 z-40 flex items-center border-t"
@@ -30,6 +31,7 @@ export default function MobileNav({ active, onNav, hasUnread = false, unreadMess
         const isActive = active === id;
         const msgBadge = id === 'messages' && unreadMessages > 0;
         const notifBadge = id === 'notifications' && hasUnread;
+        const villageBadge = id === 'matching' && hasNearbyJoinNotif;
         return (
           <button
             key={id}
@@ -48,6 +50,12 @@ export default function MobileNav({ active, onNav, hasUnread = false, unreadMess
                 </span>
               )}
               {notifBadge && (
+                <span
+                  className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-white"
+                  style={{ background: '#E53E3E' }}
+                />
+              )}
+              {villageBadge && (
                 <span
                   className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-white"
                   style={{ background: '#E53E3E' }}

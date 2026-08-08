@@ -51,6 +51,7 @@ function AppContent() {
   const [mobileChatActive, setMobileChatActive] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
+  const [hasNearbyJoinNotif, setHasNearbyJoinNotif] = useState(false);
   const [marketTrigger, setMarketTrigger] = useState(false);
   const [marketOpenListingId, setMarketOpenListingId] = useState<string | null>(null);
   const [matchingInitialTab, setMatchingInitialTab] = useState<'discover' | 'connections' | 'requests' | null>(null);
@@ -109,6 +110,16 @@ function AppContent() {
       setUnreadMessages(count ?? 0);
     }
     checkUnreadMessages();
+
+    async function checkNearbyJoinNotifs() {
+      const { count: njCount } = await supabase
+        .from('nearby_join_notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user!.id)
+        .eq('read', false);
+      setHasNearbyJoinNotif((njCount ?? 0) > 0);
+    }
+    checkNearbyJoinNotifs();
   }, [user]);
 
   useEffect(() => {
@@ -264,6 +275,15 @@ function AppContent() {
       setHasUnread(false);
       localStorage.setItem('sprout_notifs_seen_at', new Date().toISOString());
     }
+    if (view === 'matching' && hasNearbyJoinNotif && user) {
+      setHasNearbyJoinNotif(false);
+      supabase
+        .from('nearby_join_notifications')
+        .update({ read: true })
+        .eq('user_id', user.id)
+        .eq('read', false)
+        .then(() => {});
+    }
     if (view === 'messages') {
       setUnreadMessages(0);
       if (user) localStorage.setItem(`sprout_msgs_seen_at_${user.id}`, new Date().toISOString());
@@ -352,6 +372,7 @@ function AppContent() {
             key={matchingInitialTab ?? 'default'}
             onViewProfile={(profile, connected = false, pendingRequest = false) => setSubView({ type: 'publicprofile', profile, connected, pendingRequest })}
             initialTab={matchingInitialTab ?? undefined}
+            hasNearbyJoinNotif={hasNearbyJoinNotif}
           />
         );
       case 'notifications':
@@ -387,6 +408,7 @@ function AppContent() {
         onModeration={() => setSubView({ type: 'moderation' })}
         hasUnread={hasUnread}
         unreadMessages={unreadMessages}
+        hasNearbyJoinNotif={hasNearbyJoinNotif}
       />
 
       <main
@@ -396,7 +418,7 @@ function AppContent() {
         {renderContent()}
       </main>
 
-      {!subView && !mobileChatActive && <MobileNav active={mainView} onNav={navigate} hasUnread={hasUnread} unreadMessages={unreadMessages} />}
+      {!subView && !mobileChatActive && <MobileNav active={mainView} onNav={navigate} hasUnread={hasUnread} unreadMessages={unreadMessages} hasNearbyJoinNotif={hasNearbyJoinNotif} />}
     </div>
   );
 }

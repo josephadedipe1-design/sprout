@@ -1,14 +1,14 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Heart, MessageCircle, UserPlus, Bell, MapPin } from 'lucide-react';
+import { Heart, MessageCircle, UserPlus, Bell, MapPin, Users } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { formatName, objectPosition } from '@/lib/utils';
 
 interface RealNotification {
   id: string;
-  type: 'like' | 'comment' | 'connect';
+  type: 'like' | 'comment' | 'connect' | 'nearby_join';
   actorName: string;
   actorAvatar: string;
   actorAvatarPosX?: number;
@@ -21,9 +21,10 @@ interface RealNotification {
 }
 
 const ICON_MAP: Record<string, { icon: React.FC<{ className?: string; style?: React.CSSProperties }>, bg: string, color: string }> = {
-  like:    { icon: Heart,         bg: '#FFF0F0', color: '#ef4444' },
-  comment: { icon: MessageCircle, bg: '#FFF5EF', color: '#7D3C1A' },
-  connect: { icon: UserPlus,      bg: '#F0FDF4', color: '#16a34a' },
+  like:         { icon: Heart,         bg: '#FFF0F0', color: '#ef4444' },
+  comment:      { icon: MessageCircle, bg: '#FFF5EF', color: '#7D3C1A' },
+  connect:      { icon: UserPlus,      bg: '#F0FDF4', color: '#16a34a' },
+  nearby_join:   { icon: Users,         bg: '#FFF7ED', color: '#ea580c' },
 };
 
 function formatRelativeTime(dateStr: string): string {
@@ -104,6 +105,14 @@ export default function NotificationsView({ onGoToFeed, onGoToMatching, onGoToMe
       .limit(20);
     (connRaw ?? []).forEach((r: any) => actorIds.add(r.from_user_id));
 
+    // 4. Nearby join notifications
+    const { data: njRaw } = await supabase
+      .from('nearby_join_notifications')
+      .select('id, join_count, read, created_at, updated_at')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(20);
+
     // Batch-fetch all actor profiles
     const profileMap: Record<string, { first_name: string; last_initial: string; avatar_url: string; avatar_position_x?: number; avatar_position_y?: number }> = {};
     if (actorIds.size > 0) {
@@ -164,6 +173,22 @@ export default function NotificationsView({ onGoToFeed, onGoToMatching, onGoToMe
       });
     }
 
+    for (const r of (njRaw ?? [])) {
+      const count = r.join_count || 1;
+      all.push({
+        id: `nearby-join-${r.id}`,
+        type: 'nearby_join',
+        actorName: 'Sprout',
+        actorAvatar: '',
+        text: count > 1
+          ? `${count} new parents have joined near you`
+          : 'A new parent has joined near you',
+        time: formatRelativeTime(r.updated_at || r.created_at),
+        read: r.read,
+        created_at: r.updated_at || r.created_at,
+      });
+    }
+
     all.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     setNotifications(all);
     setLoading(false);
@@ -177,7 +202,7 @@ export default function NotificationsView({ onGoToFeed, onGoToMatching, onGoToMe
 
   function handleTap(n: RealNotification) {
     setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read: true } : x));
-    if (n.type === 'connect') onGoToMatching();
+    if (n.type === 'connect' || n.type === 'nearby_join') onGoToMatching();
     else if ((n.type === 'like' || n.type === 'comment') && n.post_id) onOpenThread(n.post_id);
     else if (n.type === 'like' || n.type === 'comment') onGoToFeed();
     else onGoToMessages();
