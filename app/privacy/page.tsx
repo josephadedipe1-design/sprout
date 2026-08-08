@@ -48,7 +48,7 @@ export default function PrivacyPage() {
             },
             {
               title: '7. Your Rights',
-              body: `You have the right to access, correct, or delete your personal data at any time. You can update your profile in the app, adjust privacy settings, or delete your account entirely from Settings. For other data requests, contact us at privacy@sprout.app.`,
+              body: `You have the right to access, correct, or delete your personal data at any time. You can update your profile in the app, adjust privacy settings, or delete your account entirely from Settings. For other data requests, contact us at privacy@sprout-village.co.uk.`,
             },
             {
               title: '8. Children',
@@ -60,7 +60,7 @@ export default function PrivacyPage() {
             },
             {
               title: '10. Contact',
-              body: `Questions about privacy? Email us at privacy@sprout.app.`,
+              body: `Questions about privacy? Email us at privacy@sprout-village.co.uk.`,
             },
           ].map(({ title, body }) => (
             <section key={title}>
