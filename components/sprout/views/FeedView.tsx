@@ -57,6 +57,7 @@ interface ReplyItem {
   body: string;
   created_at: string;
   author_first_name: string;
+  author_last_initial?: string | null;
   author_avatar: string;
 }
 
@@ -352,6 +353,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
       body: r.body,
       created_at: r.created_at,
       author_first_name: profileMap[r.author_id]?.first_name || 'Community Member',
+      author_last_initial: profileMap[r.author_id]?.last_initial,
       author_avatar: profileMap[r.author_id]?.avatar_url || '',
       author_avatar_pos_x: profileMap[r.author_id]?.avatar_position_x,
       author_avatar_pos_y: profileMap[r.author_id]?.avatar_position_y,
@@ -387,6 +389,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
         body: text,
         created_at: new Date().toISOString(),
         author_first_name: profile?.first_name || 'You',
+        author_last_initial: profile?.last_initial,
         author_avatar: profile?.avatar_url || '',
       };
       setRepliesMap(prev => ({ ...prev, [postId]: [...(prev[postId] ?? []), newReply] }));
@@ -809,7 +812,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
                                 )}
                                 <div className="flex-1 rounded-xl px-3 py-2" style={{ background: 'white', border: '1px solid var(--border-color)' }}>
                                   <div className="flex items-center justify-between mb-0.5">
-                                    <span className="text-xs font-semibold" style={{ color: '#2a1f18' }}>{r.author_first_name}</span>
+                                    <span className="text-xs font-semibold" style={{ color: '#2a1f18' }}>{r.author_last_initial ? `${r.author_first_name} ${r.author_last_initial}.` : r.author_first_name}</span>
                                     <span className="text-xs" style={{ color: '#c4a090' }}>{formatRelativeTime(r.created_at)}</span>
                                   </div>
                                   <p className="text-sm leading-relaxed" style={{ color: '#3a2820' }}>{r.body}</p>
