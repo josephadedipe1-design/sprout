@@ -100,7 +100,7 @@ export default function LoginPage() {
 
           <div className="space-y-5">
             {[
-              { icon: MapPin, title: 'Hyper-local.', desc: 'Everything within 2 miles of you — posts, meetups, listings and parents.' },
+              { icon: MapPin, title: 'Local.', desc: 'Everything within 10 miles of you — posts, meetups, listings and parents.' },
               { icon: Users, title: 'Real connections.', desc: 'Match with parents at exactly the same stage as you.' },
               { icon: ShieldCheck, title: 'Safe and private.', desc: 'Only your area is ever shown — never your full address.' },
             ].map(({ icon: Icon, title, desc }) => (
@@ -163,7 +163,7 @@ export default function LoginPage() {
 
               <div className="space-y-4">
                 {[
-                  { icon: MapPin, title: 'Hyper-local community', desc: 'Posts, meetups and parents within 2 miles of you.' },
+                  { icon: MapPin, title: 'Local community', desc: 'Posts, meetups and parents within 10 miles of you.' },
                   { icon: Users, title: 'Real connections', desc: 'Match with parents at exactly the same stage.' },
                   { icon: ShieldCheck, title: 'Safe and private', desc: 'Only your area is ever shown — never your address.' },
                 ].map(({ icon: Icon, title, desc }) => (
