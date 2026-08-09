@@ -340,11 +340,11 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
       .eq('post_id', postId)
       .order('created_at', { ascending: true });
     const authorIds = Array.from(new Set((replyRows ?? []).map((r: any) => r.author_id)));
-    const profileMap: Record<string, { first_name: string; avatar_url: string; avatar_position_x?: number; avatar_position_y?: number }> = {};
+    const profileMap: Record<string, { first_name: string; last_initial?: string | null; avatar_url: string; avatar_position_x?: number; avatar_position_y?: number }> = {};
     if (authorIds.length > 0) {
       const { data: profileRows } = await supabase
         .from('profiles')
-        .select('id, first_name, avatar_url, avatar_position_x, avatar_position_y')
+        .select('id, first_name, last_initial, avatar_url, avatar_position_x, avatar_position_y')
         .in('id', authorIds);
       (profileRows ?? []).forEach((p: any) => { profileMap[p.id] = p; });
     }
