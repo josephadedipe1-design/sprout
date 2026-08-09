@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   Leaf, ArrowLeft, ArrowRight, Check, MapPin, Baby, Heart,
-  Users, Plus, Eye, EyeOff, Upload, Loader2, Star, Sun, Smile, MailCheck,
+  Users, Plus, Eye, EyeOff, Upload, Loader2, Star, Sun, Smile, MailCheck, Mail,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
@@ -49,6 +49,14 @@ export default function SignupPage() {
   const [showPw, setShowPw] = useState(false);
   const [signupError, setSignupError] = useState('');
   const [signingUp, setSigningUp] = useState(false);
+
+  // Waitlist state
+  const [areaChecking, setAreaChecking] = useState(false);
+  const [areaNotActive, setAreaNotActive] = useState(false);
+  const [waitlistEmail, setWaitlistEmail] = useState('');
+  const [waitlistSubmitting, setWaitlistSubmitting] = useState(false);
+  const [waitlistSubmitted, setWaitlistSubmitted] = useState(false);
+  const [waitlistError, setWaitlistError] = useState('');
 
 
   // Step 2 — name
@@ -148,6 +156,25 @@ export default function SignupPage() {
         setCity(admin_district || region || '');
         setPostcodeValidated(true);
         setGeocodeError('');
+
+        // Check if this postcode's outcode is in an active area
+        const outcode = pc.split(/\s/)[0].toUpperCase();
+        setAreaChecking(true);
+        try {
+          const { data: areaData } = await supabase
+            .from('active_postcode_areas')
+            .select('id')
+            .eq('postcode_prefix', outcode)
+            .maybeSingle();
+          if (!areaData) {
+            setAreaNotActive(true);
+          } else {
+            setAreaNotActive(false);
+          }
+        } catch {
+          setAreaNotActive(false);
+        }
+        setAreaChecking(false);
       } else {
         setPostcodeValidated(false);
         setGeocodeError('Postcode not recognised — please check and try again.');
@@ -174,28 +201,30 @@ export default function SignupPage() {
 
   // ── Step handlers ─────────────────────────────────────────────────────────
 
-  // Step 1 → create auth user, then advance to step 2
-  async function handleStep1() {
-    setSigningUp(true);
-    setSignupError('');
+  // Step 1 → store credentials, advance to step 2 (auth account created at step 7)
+  function handleStep1() {
+    setWaitlistEmail(email);
+    setStep(2);
+  }
+
+  // Waitlist submit — insert into waitlist table
+  async function handleWaitlistSubmit() {
+    if (!waitlistEmail.trim() || !postcode.trim()) return;
+    setWaitlistSubmitting(true);
+    setWaitlistError('');
     try {
-      const { data: authData, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { emailRedirectTo: `${window.location.origin}/` },
+      const outcode = postcode.split(/\s/)[0].toUpperCase();
+      const { error: insertError } = await supabase.from('waitlist').insert({
+        email: waitlistEmail.trim(),
+        postcode: postcode,
+        postcode_prefix: outcode,
       });
-      if (signUpError) throw signUpError;
-      if (!authData.user) throw new Error('Sign up failed. Please try again.');
-      setStep(2);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Something went wrong. Please try again.';
-      if (msg.toLowerCase().includes('weak') || msg.toLowerCase().includes('pwned') || msg.toLowerCase().includes('easy to guess')) {
-        setSignupError('That password is too common — please choose something more unique.');
-      } else {
-        setSignupError(msg);
-      }
+      if (insertError) throw insertError;
+      setWaitlistSubmitted(true);
+    } catch {
+      setWaitlistError('Something went wrong. Please try again.');
     } finally {
-      setSigningUp(false);
+      setWaitlistSubmitting(false);
     }
   }
 
@@ -205,6 +234,15 @@ export default function SignupPage() {
     setSubmitting(true);
     setSubmitError('');
     try {
+      // Create the auth account now (deferred from Step 1 so waitlisted users never get one)
+      const { data: authData, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: `${window.location.origin}/` },
+      });
+      if (signUpError) throw signUpError;
+      if (!authData.user) throw new Error('Sign up failed. Please try again.');
+
       const nameParts = fullName.trim().split(/\s+/);
       const firstName = nameParts[0] || 'Parent';
       const lastInitial = nameParts.length > 1 ? nameParts[nameParts.length - 1][0].toUpperCase() : '';
@@ -244,7 +282,11 @@ export default function SignupPage() {
       setStep(8);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Something went wrong. Please try again.';
-      setSubmitError(msg);
+      if (msg.toLowerCase().includes('weak') || msg.toLowerCase().includes('pwned') || msg.toLowerCase().includes('easy to guess')) {
+        setSubmitError('That password is too common — please choose something more unique.');
+      } else {
+        setSubmitError(msg);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -264,7 +306,7 @@ export default function SignupPage() {
   const canAdvance = (() => {
     if (step === 1) return email.trim() !== '' && passwordValid && !signingUp;
     if (step === 2) return fullName.trim() !== '';
-    if (step === 3) return postcodeValidated;
+    if (step === 3) return postcodeValidated && !areaNotActive && !areaChecking;
     if (step === 4) return parentStage !== '';
     if (step === 5) return step5Complete;
     return true; // steps 6, 7, 8 can always advance (interests/photo optional)
@@ -409,6 +451,9 @@ export default function SignupPage() {
                       setPostcode(e.target.value.toUpperCase());
                       setPostcodeValidated(false);
                       setGeocodeError('');
+                      setAreaNotActive(false);
+                      setWaitlistSubmitted(false);
+                      setWaitlistError('');
                     }}
                     onBlur={e => { if (e.target.value.trim()) validatePostcode(e.target.value); }}
                   />
@@ -430,12 +475,90 @@ export default function SignupPage() {
                 {geocodeError && (
                   <p className="text-xs mt-1.5 font-medium" style={{ color: '#b45309' }}>{geocodeError}</p>
                 )}
-                {postcodeValidated && city && (
+                {postcodeValidated && city && !areaNotActive && (
                   <p className="text-xs mt-1.5 font-medium" style={{ color: '#059669' }}>
                     Found: {[neighborhood, city].filter(Boolean).join(', ')}
                   </p>
                 )}
+                {areaChecking && (
+                  <p className="text-xs mt-1.5 font-medium" style={{ color: '#9a8070' }}>
+                    Checking availability in your area…
+                  </p>
+                )}
               </div>
+
+              {/* Waitlist screen — shown when postcode is outside active areas */}
+              {areaNotActive && (
+                <div className="mt-6 p-6 rounded-2xl text-center" style={{ background: 'var(--brand-light)', border: '1px solid #e8c9b4' }}>
+                  {waitlistSubmitted ? (
+                    <div className="space-y-3">
+                      <div className="w-14 h-14 rounded-full mx-auto flex items-center justify-center" style={{ background: '#d6ede3' }}>
+                        <MailCheck className="w-7 h-7" style={{ color: '#2d7a52' }} />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold mb-1" style={{ color: '#2a1f18' }}>You&apos;re on the list!</h3>
+                        <p className="text-sm leading-relaxed" style={{ color: '#7a6055' }}>
+                          We&apos;ll email you at <strong style={{ color: '#2a1f18' }}>{waitlistEmail}</strong> as soon as Sprout launches in your area.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => { setStep(1); setAreaNotActive(false); setWaitlistSubmitted(false); setPostcode(''); setPostcodeValidated(false); }}
+                        className="text-sm font-medium underline"
+                        style={{ color: 'var(--brand)' }}
+                      >
+                        Back to start
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="w-14 h-14 rounded-full mx-auto flex items-center justify-center" style={{ background: '#fff' }}>
+                        <MapPin className="w-7 h-7" style={{ color: 'var(--brand)' }} />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold mb-1.5" style={{ color: '#2a1f18' }}>Sprout is launching in Medway first</h3>
+                        <p className="text-sm leading-relaxed" style={{ color: '#7a6055' }}>
+                          We&apos;re not in your area yet, but we&apos;re growing fast! Pop your email below and we&apos;ll let you know the moment Sprout arrives at your doorstep.
+                        </p>
+                      </div>
+                      <div className="space-y-2 text-left">
+                        <div>
+                          <label className="block text-xs font-semibold mb-1" style={{ color: '#4a3328' }}>Email address</label>
+                          <div className="relative">
+                            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#b8a090' }} />
+                            <input
+                              type="email"
+                              className="input-sprout pl-10"
+                              placeholder="you@example.com"
+                              value={waitlistEmail}
+                              onChange={e => setWaitlistEmail(e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold mb-1" style={{ color: '#4a3328' }}>Your postcode</label>
+                          <input
+                            className="input-sprout uppercase"
+                            value={postcode}
+                            readOnly
+                          />
+                        </div>
+                      </div>
+                      {waitlistError && (
+                        <p className="text-xs font-medium" style={{ color: '#b45309' }}>{waitlistError}</p>
+                      )}
+                      <button
+                        onClick={handleWaitlistSubmit}
+                        disabled={!waitlistEmail.trim() || waitlistSubmitting}
+                        className="btn-brand w-full gap-2 flex items-center justify-center"
+                        style={{ opacity: waitlistEmail.trim() && !waitlistSubmitting ? 1 : 0.5 }}
+                      >
+                        {waitlistSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                        {waitlistSubmitting ? 'Joining…' : 'Join the waitlist'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -676,7 +799,9 @@ export default function SignupPage() {
 
         {/* Navigation */}
         <div className="flex items-center justify-between mt-6">
-          {step > 1 && step < 8 ? (
+          {areaNotActive ? (
+            <span />
+          ) : step > 1 && step < 8 ? (
             <button onClick={back} className="flex items-center gap-2 text-sm font-medium" style={{ color: '#7a6055' }}>
               <ArrowLeft className="w-4 h-4" /> Back
             </button>
@@ -686,16 +811,20 @@ export default function SignupPage() {
             <span />
           )}
 
-          <button
-            onClick={handleNext}
-            className="btn-brand gap-2 flex items-center"
-            disabled={!canAdvance || isBusy}
-            style={{ opacity: canAdvance && !isBusy ? 1 : 0.45 }}
-          >
-            {isBusy && <Loader2 className="w-4 h-4 animate-spin" />}
-            {step === 8 ? 'Back to login' : step === 7 ? (submitting ? 'Saving…' : (photoPreview ? 'Finish' : 'Skip & finish')) : step === 1 ? (signingUp ? 'Creating account…' : 'Next') : 'Continue'}
-            {!isBusy && step < 8 && <ArrowRight className="w-4 h-4" />}
-          </button>
+          {areaNotActive ? (
+            <span />
+          ) : (
+            <button
+              onClick={handleNext}
+              className="btn-brand gap-2 flex items-center"
+              disabled={!canAdvance || isBusy}
+              style={{ opacity: canAdvance && !isBusy ? 1 : 0.45 }}
+            >
+              {isBusy && <Loader2 className="w-4 h-4 animate-spin" />}
+              {step === 8 ? 'Back to login' : step === 7 ? (submitting ? 'Saving…' : (photoPreview ? 'Finish' : 'Skip & finish')) : step === 1 ? 'Next' : 'Continue'}
+              {!isBusy && step < 8 && <ArrowRight className="w-4 h-4" />}
+            </button>
+          )}
         </div>
       </div>
     </div>
