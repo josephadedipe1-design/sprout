@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { Leaf, ArrowLeft, Send, Loader2, CheckCircle, Bold, Italic, Underline, ImagePlus, X } from 'lucide-react';
+import { Leaf, ArrowLeft, Send, Loader2, CheckCircle, Bold, Italic, Underline, ImagePlus, X, Link as LinkIcon } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 
@@ -50,6 +50,27 @@ export default function BroadcastView({ onBack }: BroadcastViewProps) {
       ta.focus();
       const selStart = start + marker.length;
       const selEnd = selStart + (selected || 'text').length;
+      ta.setSelectionRange(selStart, selEnd);
+    });
+  }
+
+  function insertLink() {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const selected = body.substring(start, end);
+    const url = window.prompt('Enter the URL (https://…)');
+    if (!url || !url.trim()) return;
+    const cleanUrl = url.trim();
+    const linkText = selected || 'link text';
+    const replacement = `[${linkText}](${cleanUrl})`;
+    const newBody = body.substring(0, start) + replacement + body.substring(end);
+    setBody(newBody);
+    requestAnimationFrame(() => {
+      ta.focus();
+      const selStart = start + 1;
+      const selEnd = selStart + linkText.length;
       ta.setSelectionRange(selStart, selEnd);
     });
   }
@@ -187,6 +208,15 @@ export default function BroadcastView({ onBack }: BroadcastViewProps) {
             >
               <Underline className="w-4 h-4" />
             </button>
+            <button
+              type="button"
+              onClick={insertLink}
+              className="p-2 rounded-lg hover:bg-white transition-colors"
+              title="Insert link"
+              style={{ color: '#3a2820' }}
+            >
+              <LinkIcon className="w-4 h-4" />
+            </button>
             <div className="w-px h-5 mx-1" style={{ background: 'var(--border-color)' }} />
             <button
               type="button"
@@ -216,7 +246,7 @@ export default function BroadcastView({ onBack }: BroadcastViewProps) {
             maxLength={2000}
           />
           <p className="text-xs mt-1" style={{ color: '#c4a090' }}>
-            {body.length} / 2000 characters · Use **bold**, _italic_, ++underline++
+            {body.length} / 2000 characters · Use **bold**, _italic_, ++underline++, [link text](url)
           </p>
         </div>
 
