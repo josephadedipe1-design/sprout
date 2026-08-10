@@ -7,6 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import { sendNotificationEmail, truncatePreview } from '@/lib/notifications';
 import type { DbProfile } from '@/lib/types';
 import { formatLocation, formatName } from '@/lib/utils';
+import { renderAnnouncementMarkdown } from '@/lib/announcement-markdown';
 import ReportModal, { type ReportTarget } from '@/components/sprout/ReportModal';
 
 interface Post {
@@ -264,7 +265,7 @@ export default function ThreadView({ postId, onBack }: ThreadViewProps) {
                 )}
               </div>
             </div>
-            <p className="text-sm leading-relaxed mb-4" style={{ color: '#3a2820', lineHeight: 1.65 }}>{post.body}</p>
+            <div className="text-sm leading-relaxed mb-4 announcement-body" style={{ color: '#3a2820', lineHeight: 1.65 }} dangerouslySetInnerHTML={{ __html: renderAnnouncementMarkdown(post.body) }} />
             <button
               onClick={togglePostLike}
               className="flex items-center gap-1.5 text-sm"
@@ -331,7 +332,7 @@ export default function ThreadView({ postId, onBack }: ThreadViewProps) {
                             )}
                           </div>
                         </div>
-                        <p className="text-sm leading-relaxed" style={{ color: '#3a2820' }}>{r.body}</p>
+                        <div className="text-sm leading-relaxed announcement-body" style={{ color: '#3a2820' }} dangerouslySetInnerHTML={{ __html: renderAnnouncementMarkdown(r.body) }} />
                       </div>
                     </div>
                   );

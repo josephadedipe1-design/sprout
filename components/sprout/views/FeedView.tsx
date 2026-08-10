@@ -745,15 +745,11 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
                     </div>
                   </div>
 
-                  {isOfficial ? (
-                    <div
-                      className="text-sm leading-relaxed mb-3 announcement-body"
-                      style={{ color: '#3a2820', lineHeight: 1.6 }}
-                      dangerouslySetInnerHTML={{ __html: renderAnnouncementMarkdown(post.body) }}
-                    />
-                  ) : (
-                    <p className="text-sm leading-relaxed mb-3" style={{ color: '#3a2820', lineHeight: 1.6 }}>{post.body}</p>
-                  )}
+                  <div
+                    className="text-sm leading-relaxed mb-3 announcement-body"
+                    style={{ color: '#3a2820', lineHeight: 1.6 }}
+                    dangerouslySetInnerHTML={{ __html: renderAnnouncementMarkdown(post.body) }}
+                  />
                   {post.image_url && (
                     <img
                       src={post.image_url}
@@ -812,7 +808,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
                                     <span className="text-xs font-semibold" style={{ color: '#2a1f18' }}>{r.author_first_name}</span>
                                     <span className="text-xs" style={{ color: '#c4a090' }}>{formatRelativeTime(r.created_at)}</span>
                                   </div>
-                                  <p className="text-sm leading-relaxed" style={{ color: '#3a2820' }}>{r.body}</p>
+                                  <div className="text-sm leading-relaxed announcement-body" style={{ color: '#3a2820' }} dangerouslySetInnerHTML={{ __html: renderAnnouncementMarkdown(r.body) }} />
                                 </div>
                               </div>
                             ))}

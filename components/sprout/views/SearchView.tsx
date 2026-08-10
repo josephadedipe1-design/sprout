@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Search, ArrowLeft, MapPin, Clock, TrendingUp, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { renderAnnouncementMarkdown } from '@/lib/announcement-markdown';
 import type { DbProfile } from '@/lib/types';
 import { formatLocation, formatName, objectPosition } from '@/lib/utils';
 
@@ -221,7 +222,7 @@ export default function SearchView({ onBack }: SearchViewProps) {
               <div className="space-y-3">
                 {results.posts.map((p) => (
                   <div key={p.id} className="card-sprout p-4">
-                    <p className="text-sm mb-2 leading-relaxed" style={{ color: '#2a1f18', lineHeight: 1.5 }}>{p.body}</p>
+                    <div className="text-sm mb-2 leading-relaxed announcement-body" style={{ color: '#2a1f18', lineHeight: 1.5 }} dangerouslySetInnerHTML={{ __html: renderAnnouncementMarkdown(p.body) }} />
                     <p className="text-xs" style={{ color: '#9a8070' }}>
                       {p.profile ? (formatName(p.profile.first_name ?? '', p.profile.last_initial) || 'Community Member') : 'Anonymous'} · {formatRelativeTime(p.created_at)}
                     </p>

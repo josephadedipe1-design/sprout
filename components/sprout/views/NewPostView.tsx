@@ -1,9 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { ArrowLeft, MapPin, X, Shield } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { ArrowLeft, MapPin, X, Shield, Bold, Italic, Underline, Link as LinkIcon } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
+
+function insertWrappedText(value: string, start: number, end: number, marker: string): { value: string; selectionStart: number; selectionEnd: number } {
+  const selected = value.substring(start, end);
+  const text = selected || 'text';
+  return {
+    value: value.substring(0, start) + marker + text + marker + value.substring(end),
+    selectionStart: start + marker.length,
+    selectionEnd: start + marker.length + text.length,
+  };
+}
 
 const POST_TYPES = [
   { id: 'question', label: 'Question', desc: 'Ask the community for advice', color: '#7D3C1A', bg: '#FFF5EF' },
@@ -31,6 +41,7 @@ export default function NewPostView({ onBack, onPublish, onListInMarket }: NewPo
   const [error, setError] = useState('');
   const [safetyDismissed, setSafetyDismissed] = useState(false);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (cooldownRemaining <= 0) return;
@@ -44,6 +55,34 @@ export default function NewPostView({ onBack, onPublish, onListInMarket }: NewPo
 
   function toggleTag(t: string) {
     setSelectedTags((prev) => prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]);
+  }
+
+  function wrapSelection(marker: string) {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const result = insertWrappedText(content, textarea.selectionStart, textarea.selectionEnd, marker);
+    setContent(result.value);
+    requestAnimationFrame(() => {
+      textarea.focus();
+      textarea.setSelectionRange(result.selectionStart, result.selectionEnd);
+    });
+  }
+
+  function insertLink() {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selected = content.substring(start, end);
+    const url = window.prompt('Enter the URL (https://…)');
+    if (!url?.trim()) return;
+    const linkText = selected || 'link text';
+    const replacement = `[${linkText}](${url.trim()})`;
+    setContent(content.substring(0, start) + replacement + content.substring(end));
+    requestAnimationFrame(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start + 1, start + 1 + linkText.length);
+    });
   }
 
   async function handlePublish() {
@@ -143,7 +182,14 @@ export default function NewPostView({ onBack, onPublish, onListInMarket }: NewPo
           )}
 
           <div>
+            <div className="flex items-center gap-1 mb-2 p-1.5 rounded-xl" style={{ background: 'var(--surface)', border: '1px solid var(--border-color)' }}>
+              <button type="button" onClick={() => wrapSelection('**')} className="p-2 rounded-lg hover:bg-white transition-colors" title="Bold" style={{ color: '#3a2820' }}><Bold className="w-4 h-4" /></button>
+              <button type="button" onClick={() => wrapSelection('_')} className="p-2 rounded-lg hover:bg-white transition-colors" title="Italic" style={{ color: '#3a2820' }}><Italic className="w-4 h-4" /></button>
+              <button type="button" onClick={() => wrapSelection('++')} className="p-2 rounded-lg hover:bg-white transition-colors" title="Underline" style={{ color: '#3a2820' }}><Underline className="w-4 h-4" /></button>
+              <button type="button" onClick={insertLink} className="p-2 rounded-lg hover:bg-white transition-colors" title="Insert link" style={{ color: '#3a2820' }}><LinkIcon className="w-4 h-4" /></button>
+            </div>
             <textarea
+              ref={textareaRef}
               className="input-sprout resize-none"
               rows={5}
               placeholder={
@@ -156,7 +202,7 @@ export default function NewPostView({ onBack, onPublish, onListInMarket }: NewPo
               value={content}
               onChange={(e) => setContent(e.target.value)}
             />
-            <p className="text-xs mt-1 text-right" style={{ color: '#c4a090' }}>{content.length}/500</p>
+            <p className="text-xs mt-1" style={{ color: '#c4a090' }}>{content.length}/500 · Use **bold**, _italic_, ++underline++, [link text](url)</p>
           </div>
 
           <div className="flex items-center gap-3 p-3 rounded-xl" style={{ background: '#f4f3f0' }}>
