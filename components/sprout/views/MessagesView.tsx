@@ -320,18 +320,23 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
     const optimistic: MsgDisplay = { id: `tmp-${Date.now()}`, from: 'me', text, time: 'just now' };
     setMessages(prev => [...prev, optimistic]);
 
-    const { data: inserted } = await supabase.from('messages').insert({
+    const { data: inserted, error: insertError } = await supabase.from('messages').insert({
       conversation_id: activeId,
       sender_id: user.id,
       body: text,
     }).select().maybeSingle();
+
+    if (insertError) {
+      console.error('Failed to send message:', insertError);
+      setMessages(prev => prev.filter(m => m.id !== optimistic.id));
+      return;
+    }
 
     if (inserted) {
       setMessages(prev => prev.map(m =>
         m.id === optimistic.id ? { ...m, id: inserted.id, time: formatMsgTime(inserted.created_at) } : m
       ));
     }
-
     await supabase.from('conversations').update({
       last_message: text,
       last_message_at: new Date().toISOString(),
