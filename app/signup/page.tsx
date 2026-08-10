@@ -20,7 +20,7 @@ const PARENT_STAGES = [
   { id: 'both',     title: 'Both', desc: "I have a child or children and I'm expecting again", Icon: Users },
 ];
 
-const CHILD_AGES = ['Under 1 year', '2 - 4 years', '5 - 8 years', '9 - 11 years'];
+const CHILD_AGES = ['Under 1 year', '1 - 4 years', '5 - 8 years', '9 - 11 years'];
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const INTERESTS = [
   'Getting out', 'Feeding', 'Sleep', 'Health', 'Development',

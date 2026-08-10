@@ -24,7 +24,7 @@ export interface Profile {
 const AGE_MONTHS_TO_LABEL: [number, string][] = [
   [108, '9 - 11 years'],
   [60, '5 - 8 years'],
-  [24, '2 - 4 years'],
+  [12, '1 - 4 years'],
   [0, 'Under 1 year'],
 ];
 
@@ -37,11 +37,10 @@ export function ageMonthsToLabel(months: number): string {
 
 export const AGE_LABEL_TO_MONTHS: Record<string, number> = {
   'Under 1 year': 0,
-  '2 - 4 years': 24,
+  '1 - 4 years': 12,
   '5 - 8 years': 60,
   '9 - 11 years': 108,
 };
-
 /** Fetches children rows and user_interests for the given profile IDs and returns enriched profiles. */
 export async function enrichProfilesWithChildren(profiles: DbProfile[]): Promise<EnrichedProfile[]>{
   if (profiles.length === 0) return [];
