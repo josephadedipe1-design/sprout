@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Camera, Loader2, MapPin, Move } from 'lucide-react';
+import { ArrowLeft, Baby, Camera, Check, Heart, Loader2, MapPin, Move, Plus, Trash2, Users } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { fetchUserInterests } from '@/lib/profiles';
+import { fetchUserInterests, ageMonthsToLabel, AGE_LABEL_TO_MONTHS } from '@/lib/profiles';
 import { objectPosition } from '@/lib/utils';
 import ImageRepositioner from '@/components/sprout/ImageRepositioner';
 
@@ -29,6 +29,14 @@ const INTERESTS = [
 ];
 const BIO_MAX = 150;
 
+const PARENT_TYPES = [
+  { id: 'expecting', title: 'Expecting', desc: "I'm pregnant and due soon", Icon: Baby },
+  { id: 'parent',   title: 'Already a parent', desc: 'I have a child or children', Icon: Heart },
+  { id: 'both',     title: 'Both', desc: "I have a child or children and I'm expecting again", Icon: Users },
+];
+
+const CHILD_AGE_OPTIONS = ['Under 1 year', '1 - 4 years', '5 - 8 years', '9 - 11 years'];
+
 export default function EditProfileView({ onBack, onSave }: EditProfileViewProps) {
   const { profile, user, refreshProfile } = useAuth();
   const [saving, setSaving] = useState(false);
@@ -46,6 +54,8 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
   const [avatarUrl, setAvatarUrl] = useState('');
   const [avatarPos, setAvatarPos] = useState({ x: 50, y: 50 });
   const [showReposition, setShowReposition] = useState(false);
+  const [parentType, setParentType] = useState('');
+  const [children, setChildren] = useState<{ id: string | null; age_months: number }[]>([]);
 
   useEffect(() => {
     if (profile) {
@@ -60,9 +70,13 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
       });
       setAvatarUrl(profile.avatar_url || '');
       setAvatarPos({ x: profile.avatar_position_x ?? 50, y: profile.avatar_position_y ?? 50 });
+      setParentType(profile.parent_type ?? 'parent');
       if (user) {
         fetchUserInterests(user.id).then(interests => {
           setForm(f => ({ ...f, interests: interests.length > 0 ? interests : f.interests }));
+        });
+        supabase.from('children').select('id, age_months').eq('user_id', user.id).order('created_at').then(({ data }) => {
+          setChildren((data ?? []).map((c: { id: string; age_months: number }) => ({ id: c.id, age_months: c.age_months })));
         });
       }
     }
@@ -155,7 +169,7 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
       last_initial: lastInitial,
       bio: form.bio.slice(0, BIO_MAX),
       avatar_url: avatarUrl,
-      parent_type: profile?.parent_type ?? 'parent',
+      parent_type: parentType,
       due_date: profile?.due_date ?? null,
       postcode: finalPostcode,
       postcode_district: finalPostcode.split(' ')[0] || profile?.postcode_district || '',
@@ -188,6 +202,15 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
       const rows = form.interests.map(interest => ({ user_id: user.id, interest }));
       const { error: interestError } = await supabase.from('user_interests').insert(rows);
       if (interestError) throw interestError;
+    }
+
+    // Sync children: delete all existing, then insert current
+    const { error: deleteChildrenError } = await supabase.from('children').delete().eq('user_id', user.id);
+    if (deleteChildrenError) throw deleteChildrenError;
+    if (children.length > 0) {
+      const childRows = children.map(c => ({ user_id: user.id, age_months: c.age_months }));
+      const { error: childrenInsertError } = await supabase.from('children').insert(childRows);
+      if (childrenInsertError) throw childrenInsertError;
     }
 
     await refreshProfile();
@@ -362,6 +385,86 @@ export default function EditProfileView({ onBack, onSave }: EditProfileViewProps
           )}
           <p className="text-xs mt-1" style={{ color: '#c4a090' }}>Enter your full postcode (e.g. SW1A 1AA). Only your area is ever shown to others — never your full address.</p>
         </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-2" style={{ color: '#4a3328' }}>Family status</label>
+          <div className="space-y-2.5">
+            {PARENT_TYPES.map(({ id, title, desc, Icon }) => {
+              const sel = parentType === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setParentType(id)}
+                  className="w-full flex items-center gap-4 p-4 rounded-xl border text-left transition-all"
+                  style={{ borderColor: sel ? 'var(--brand)' : 'var(--border-color)', background: sel ? 'var(--brand-light)' : 'white' }}
+                >
+                  <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: sel ? 'var(--brand)' : '#f0ece5' }}>
+                    <Icon className="w-5 h-5" style={{ color: sel ? 'white' : '#9a7060' }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm" style={{ color: sel ? 'var(--brand)' : '#2a1f18' }}>{title}</p>
+                    <p className="text-xs mt-0.5" style={{ color: '#9a8070' }}>{desc}</p>
+                  </div>
+                  {sel && (
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'var(--brand)' }}>
+                      <Check className="w-3 h-3 text-white" />
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {(parentType === 'parent' || parentType === 'both' || children.length > 0) && (
+          <div>
+            <label className="block text-sm font-medium mb-2" style={{ color: '#4a3328' }}>Your children</label>
+            <div className="space-y-4">
+              {children.map((child, i) => (
+                <div key={i} className="p-3 rounded-xl" style={{ background: '#f8f6f3', border: '1px solid var(--border-color)' }}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-medium" style={{ color: '#9a8070' }}>Child {i + 1}</span>
+                    <button
+                      type="button"
+                      onClick={() => setChildren(prev => prev.filter((_, idx) => idx !== i))}
+                      className="p-1 rounded-lg transition-colors hover:bg-red-50"
+                      style={{ color: '#c4a090' }}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {CHILD_AGE_OPTIONS.map(age => {
+                      const months = AGE_LABEL_TO_MONTHS[age] ?? 0;
+                      const sel = child.age_months === months;
+                      return (
+                        <button
+                          key={age}
+                          type="button"
+                          onClick={() => setChildren(prev => prev.map((c, idx) => idx === i ? { ...c, age_months: months } : c))}
+                          className="py-2 px-2 rounded-xl border text-xs font-medium transition-all"
+                          style={{
+                            borderColor: sel ? 'var(--brand)' : 'var(--border-color)',
+                            background: sel ? 'var(--brand-light)' : 'white',
+                            color: sel ? 'var(--brand)' : '#5a4035',
+                          }}
+                        >{age}</button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => setChildren(prev => [...prev, { id: null, age_months: 0 }])}
+                className="flex items-center gap-2 text-sm font-medium py-1" style={{ color: 'var(--brand)' }}
+              >
+                <Plus className="w-4 h-4" /> Add a child
+              </button>
+            </div>
+          </div>
+        )}
 
         <div>
           <label className="block text-sm font-medium mb-2" style={{ color: '#4a3328' }}>Interests</label>

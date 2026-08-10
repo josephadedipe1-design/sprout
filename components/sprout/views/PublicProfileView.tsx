@@ -111,30 +111,33 @@ export default function PublicProfileView({ profile, onBack, onConnect, onMessag
         {profile.bio}
       </p>
 
-      {/* Life stage badge */}
+      {/* Life stage badge + children */}
       {(() => {
         const meta = profile.parent_type
           ? { expecting: { Icon: Baby, label: 'Expecting', color: '#2563EB', bg: '#EFF4FF' }, parent: { Icon: Heart, label: 'Parent', color: 'var(--brand)', bg: 'var(--brand-light)' }, both: { Icon: Users, label: 'Parent & Expecting', color: '#7c3aed', bg: '#F3EBFD' } }[profile.parent_type]
           : undefined;
         if (!meta) return null;
         const Icon = meta.Icon;
+        const hasChildren = profile.childrenAges.length > 0;
+        const childPrefix = profile.childrenAges.length > 1 ? 'Children:' : 'Child:';
         return (
-          <div className="mb-4">
+          <div className="mb-4 flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold" style={{ background: meta.bg, color: meta.color }}>
               <Icon className="w-3.5 h-3.5" /> {meta.label}
             </span>
+            {hasChildren && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-xs font-semibold" style={{ color: '#9a8070' }}>{childPrefix}</span>
+                {profile.childrenAges.map((a) => (
+                  <span key={a} className="tag-sprout text-xs" style={{ background: '#f4f3f0', color: '#7a6055', border: '1px solid #e0dbd4' }}>
+                    <Baby className="w-3 h-3 mr-1" />{a}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         );
       })()}
-
-      {/* Children tags */}
-      <div className="flex flex-wrap gap-1.5 mb-4">
-        {profile.childrenAges.map((a) => (
-          <span key={a} className="tag-sprout text-xs" style={{ background: '#f4f3f0', color: '#7a6055', border: '1px solid #e0dbd4' }}>
-            <Baby className="w-3 h-3 mr-1" />{a}
-          </span>
-        ))}
-      </div>
 
       {/* Interests */}
       <div className="mb-6">

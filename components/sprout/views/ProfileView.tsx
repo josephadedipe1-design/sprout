@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { MapPin, Edit3, Settings, Heart, FileText, ShoppingBag, UserPlus, Baby, Users } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { fetchUserInterests } from '@/lib/profiles';
+import { fetchUserInterests, ageMonthsToLabel } from '@/lib/profiles';
 import { formatLocation, objectPosition } from '@/lib/utils';
 
 interface ActivityItem {
@@ -56,6 +56,7 @@ export default function ProfileView({ onEditProfile, onSettings }: ProfileViewPr
   const [stats, setStats] = useState<Stats>({ posts: 0, connections: 0, listings: 0 });
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [interests, setInterests] = useState<string[]>([]);
+  const [childrenAges, setChildrenAges] = useState<string[]>([]);
 
   useEffect(() => {
     if (!user) return;
@@ -107,7 +108,12 @@ export default function ProfileView({ onEditProfile, onSettings }: ProfileViewPr
 
     loadStats();
     loadActivity();
-    if (user) fetchUserInterests(user.id).then(setInterests);
+    if (user) {
+      fetchUserInterests(user.id).then(setInterests);
+      supabase.from('children').select('age_months').eq('user_id', user.id).then(({ data }) => {
+        setChildrenAges((data ?? []).map((c: { age_months: number }) => ageMonthsToLabel(c.age_months)));
+      });
+    }
   }, [user]);
 
   const firstName = profile?.first_name || '';
@@ -185,16 +191,28 @@ export default function ProfileView({ onEditProfile, onSettings }: ProfileViewPr
         </div>
       </div>
 
-      {/* Life stage badge */}
+      {/* Life stage badge + children */}
       {(() => {
         const meta = profile?.parent_type ? PARENT_TYPE_META[profile.parent_type] : undefined;
         if (!meta) return null;
         const Icon = meta.Icon;
+        const hasChildren = childrenAges.length > 0;
+        const childPrefix = childrenAges.length > 1 ? 'Children:' : 'Child:';
         return (
-          <div className="mb-4">
+          <div className="mb-4 flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold" style={{ background: meta.bg, color: meta.color }}>
               <Icon className="w-3.5 h-3.5" /> {meta.label}
             </span>
+            {hasChildren && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-xs font-semibold" style={{ color: '#9a8070' }}>{childPrefix}</span>
+                {childrenAges.map((a) => (
+                  <span key={a} className="tag-sprout text-xs" style={{ background: '#f4f3f0', color: '#7a6055', border: '1px solid #e0dbd4' }}>
+                    <Baby className="w-3 h-3 mr-1" />{a}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         );
       })()}

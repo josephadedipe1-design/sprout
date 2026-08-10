@@ -41,6 +41,7 @@ export const AGE_LABEL_TO_MONTHS: Record<string, number> = {
   '5 - 8 years': 60,
   '9 - 11 years': 108,
 };
+
 /** Fetches children rows and user_interests for the given profile IDs and returns enriched profiles. */
 export async function enrichProfilesWithChildren(profiles: DbProfile[]): Promise<EnrichedProfile[]>{
   if (profiles.length === 0) return [];
