@@ -11,6 +11,7 @@ interface AuthContextValue {
   loading: boolean;
   emailConfirmed: boolean;
   profileSetupInProgress: boolean;
+  suspended: boolean;
   setProfileSetupInProgress: (v: boolean) => void;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -22,6 +23,7 @@ const AuthContext = createContext<AuthContextValue>({
   loading: true,
   emailConfirmed: false,
   profileSetupInProgress: false,
+  suspended: false,
   setProfileSetupInProgress: () => {},
   signOut: async () => {},
   refreshProfile: async () => {},
@@ -33,6 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [emailConfirmed, setEmailConfirmed] = useState(false);
   const [profileSetupInProgress, setProfileSetupInProgress] = useState(false);
+  const [suspended, setSuspended] = useState(false);
 
   const loadProfile = useCallback(async (userId: string) => {
     const [profileRes, interestsRes] = await Promise.all([
@@ -42,8 +45,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (profileRes.data) {
       const interests = (interestsRes.data ?? []).map(r => r.interest);
       setProfile({ ...profileRes.data, interests });
+      setSuspended(!!profileRes.data.suspended);
     } else {
       setProfile(null);
+      setSuspended(false);
     }
   }, []);
 
@@ -82,10 +87,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function signOut() {
     await supabase.auth.signOut();
     setProfile(null);
+    setSuspended(false);
   }
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, emailConfirmed, profileSetupInProgress, setProfileSetupInProgress, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ user, profile, loading, emailConfirmed, profileSetupInProgress, suspended, setProfileSetupInProgress, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

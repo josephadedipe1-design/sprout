@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, Shield, Flag, CheckCircle, XCircle, Loader2, User, MessageSquare, FileText, Filter } from 'lucide-react';
+import { ArrowLeft, Shield, Flag, CheckCircle, XCircle, Loader2, User, MessageSquare, FileText, Filter, Trash2, Ban, ShieldCheck } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 
@@ -21,6 +21,12 @@ interface ReportRow {
   message_id: string | null;
 }
 
+interface ReportedUser {
+  first_name: string | null;
+  last_initial: string | null;
+  suspended: boolean;
+}
+
 interface ReporterInfo {
   first_name: string | null;
   last_initial: string | null;
@@ -36,6 +42,7 @@ interface ContentPreview {
 interface EnrichedReport extends ReportRow {
   reporter?: ReporterInfo;
   preview?: ContentPreview;
+  reportedUser?: ReportedUser;
 }
 
 const REASON_LABELS: Record<string, string> = {
@@ -128,16 +135,19 @@ export default function ModerationView({ onBack }: ModerationViewProps) {
       });
     }
 
-    // Fetch reported user profiles
+    // Fetch reported user profiles (and post/message authors for suspend)
     const reportedUserIds = Array.from(new Set(rows.map((r) => r.user_id).filter(Boolean))) as string[];
-    const reportedUserMap: Record<string, { first_name: string; last_initial: string | null }> = {};
-    if (reportedUserIds.length > 0) {
+    const authorIdsFromPosts = Array.from(new Set(Object.values(postMap).map((p) => p.author_id).filter(Boolean))) as string[];
+    const authorIdsFromMessages = Array.from(new Set(Object.values(messageMap).map((m) => m.sender_id).filter(Boolean))) as string[];
+    const allReportedUserIds = Array.from(new Set([...reportedUserIds, ...authorIdsFromPosts, ...authorIdsFromMessages]));
+    const reportedUserMap: Record<string, ReportedUser> = {};
+    if (allReportedUserIds.length > 0) {
       const { data: userRows } = await supabase
         .from('profiles')
-        .select('id, first_name, last_initial')
-        .in('id', reportedUserIds);
+        .select('id, first_name, last_initial, suspended')
+        .in('id', allReportedUserIds);
       (userRows ?? []).forEach((p: any) => {
-        reportedUserMap[p.id] = { first_name: p.first_name, last_initial: p.last_initial };
+        reportedUserMap[p.id] = { first_name: p.first_name, last_initial: p.last_initial, suspended: !!p.suspended };
       });
     }
 
@@ -183,10 +193,21 @@ export default function ModerationView({ onBack }: ModerationViewProps) {
         };
       }
 
+      // Determine the reported user for suspend/unsuspend actions
+      let reportedUser: ReportedUser | undefined;
+      if (r.user_id && reportedUserMap[r.user_id]) {
+        reportedUser = reportedUserMap[r.user_id];
+      } else if (r.post_id && postMap[r.post_id] && reportedUserMap[postMap[r.post_id].author_id]) {
+        reportedUser = reportedUserMap[postMap[r.post_id].author_id];
+      } else if (r.message_id && messageMap[r.message_id] && reportedUserMap[messageMap[r.message_id].sender_id]) {
+        reportedUser = reportedUserMap[messageMap[r.message_id].sender_id];
+      }
+
       return {
         ...r,
         reporter: reporterMap[r.reporter_id],
         preview,
+        reportedUser,
       };
     });
 
@@ -204,6 +225,57 @@ export default function ModerationView({ onBack }: ModerationViewProps) {
     setActingId(null);
     if (!error) {
       setReports((prev) => prev.filter((r) => r.id !== reportId));
+    }
+  }
+
+  async function deleteContent(report: EnrichedReport) {
+    setActingId(report.id);
+    let delErr: any = null;
+    if (report.post_id) {
+      ({ error: delErr } = await supabase.from('posts').delete().eq('id', report.post_id));
+    } else if (report.message_id) {
+      ({ error: delErr } = await supabase.from('messages').delete().eq('id', report.message_id));
+    }
+    if (delErr) {
+      setActingId(null);
+      return;
+    }
+    await supabase.from('reports').update({ status: 'actioned' }).eq('id', report.id);
+    setActingId(null);
+    setReports((prev) => prev.filter((r) => r.id !== report.id));
+  }
+
+  async function suspendUser(report: EnrichedReport) {
+    // Resolve the target user id from the report
+    let uid: string | null = report.user_id;
+    if (!uid && report.post_id) {
+      const { data: p } = await supabase.from('posts').select('author_id').eq('id', report.post_id).maybeSingle();
+      uid = p?.author_id ?? null;
+    }
+    if (!uid && report.message_id) {
+      const { data: m } = await supabase.from('messages').select('sender_id').eq('id', report.message_id).maybeSingle();
+      uid = m?.sender_id ?? null;
+    }
+    if (!uid) return;
+    setActingId(report.id);
+    const { error } = await supabase.rpc('admin_set_suspended', { target_uid: uid, val: true });
+    if (error) {
+      setActingId(null);
+      return;
+    }
+    await supabase.from('reports').update({ status: 'actioned' }).eq('id', report.id);
+    setActingId(null);
+    setReports((prev) => prev.filter((r) => r.id !== report.id));
+  }
+
+  async function unsuspendUser(report: EnrichedReport) {
+    const targetUid = report.user_id ?? null;
+    if (!targetUid) return;
+    setActingId(report.id);
+    const { error } = await supabase.rpc('admin_set_suspended', { target_uid: targetUid, val: false });
+    setActingId(null);
+    if (!error) {
+      setReports((prev) => prev.map((r) => r.id === report.id ? { ...r, reportedUser: r.reportedUser ? { ...r.reportedUser, suspended: false } : r.reportedUser } : r));
     }
   }
 
@@ -333,28 +405,72 @@ export default function ModerationView({ onBack }: ModerationViewProps) {
                   <span>Reported by {r.reporter ? formatName(r.reporter.first_name, r.reporter.last_initial) : 'Unknown user'}</span>
                 </div>
 
-                {/* Action buttons */}
-                {r.status === 'pending' && (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => updateStatus(r.id, 'actioned')}
-                      disabled={actingId === r.id}
-                      className="flex-1 text-sm font-semibold py-2 rounded-xl transition-opacity hover:opacity-80 flex items-center justify-center gap-1.5"
-                      style={{ background: 'var(--brand)', color: 'white', opacity: actingId === r.id ? 0.5 : 1 }}
-                    >
-                      {actingId === r.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
-                      Take action
-                    </button>
-                    <button
-                      onClick={() => updateStatus(r.id, 'dismissed')}
-                      disabled={actingId === r.id}
-                      className="flex-1 text-sm font-semibold py-2 rounded-xl border transition-opacity hover:opacity-80 flex items-center justify-center gap-1.5"
-                      style={{ borderColor: '#d0c8c0', color: '#5a4035', background: 'white', opacity: actingId === r.id ? 0.5 : 1 }}
-                    >
-                      <XCircle className="w-3.5 h-3.5" />
-                      Dismiss
-                    </button>
+                {/* Suspend badge for actioned reports */}
+                {r.status !== 'pending' && r.reportedUser?.suspended && (
+                  <div className="flex items-center gap-1.5 text-xs mb-3" style={{ color: '#B91C1C' }}>
+                    <Ban className="w-3.5 h-3.5" />
+                    <span className="font-semibold">User suspended</span>
                   </div>
+                )}
+
+                {/* Action buttons */}
+                {r.status === 'pending' ? (
+                  <>
+                    {(r.post_id || r.message_id) && (
+                      <button
+                        onClick={() => deleteContent(r)}
+                        disabled={actingId === r.id}
+                        className="w-full text-sm font-semibold py-2 rounded-xl transition-opacity hover:opacity-80 flex items-center justify-center gap-1.5 mb-2"
+                        style={{ background: '#FEE2E2', color: '#B91C1C', opacity: actingId === r.id ? 0.5 : 1 }}
+                      >
+                        {actingId === r.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                        Delete content
+                      </button>
+                    )}
+                    {r.reportedUser && (
+                      <button
+                        onClick={() => suspendUser(r)}
+                        disabled={actingId === r.id}
+                        className="w-full text-sm font-semibold py-2 rounded-xl transition-opacity hover:opacity-80 flex items-center justify-center gap-1.5 mb-2"
+                        style={{ background: '#FEF3C7', color: '#92400E', opacity: actingId === r.id ? 0.5 : 1 }}
+                      >
+                        {actingId === r.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Ban className="w-3.5 h-3.5" />}
+                        Suspend user
+                      </button>
+                    )}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => updateStatus(r.id, 'actioned')}
+                        disabled={actingId === r.id}
+                        className="flex-1 text-sm font-semibold py-2 rounded-xl transition-opacity hover:opacity-80 flex items-center justify-center gap-1.5"
+                        style={{ background: 'var(--brand)', color: 'white', opacity: actingId === r.id ? 0.5 : 1 }}
+                      >
+                        {actingId === r.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                        Mark actioned
+                      </button>
+                      <button
+                        onClick={() => updateStatus(r.id, 'dismissed')}
+                        disabled={actingId === r.id}
+                        className="flex-1 text-sm font-semibold py-2 rounded-xl border transition-opacity hover:opacity-80 flex items-center justify-center gap-1.5"
+                        style={{ borderColor: '#d0c8c0', color: '#5a4035', background: 'white', opacity: actingId === r.id ? 0.5 : 1 }}
+                      >
+                        <XCircle className="w-3.5 h-3.5" />
+                        Dismiss
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  r.reportedUser?.suspended && r.user_id && (
+                    <button
+                      onClick={() => unsuspendUser(r)}
+                      disabled={actingId === r.id}
+                      className="w-full text-sm font-semibold py-2 rounded-xl transition-opacity hover:opacity-80 flex items-center justify-center gap-1.5"
+                      style={{ background: 'var(--brand-light)', color: 'var(--brand)', opacity: actingId === r.id ? 0.5 : 1 }}
+                    >
+                      {actingId === r.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
+                      Unsuspend user
+                    </button>
+                  )
                 )}
               </div>
             );

@@ -24,6 +24,7 @@ export interface DbProfile {
   lng: number | null;
   created_at: string;
   updated_at: string;
+  suspended?: boolean;
 }
 
 /** DbProfile + runtime-enriched fields fetched from separate tables. */

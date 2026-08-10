@@ -527,8 +527,7 @@ export default function SignupPage() {
                             <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#b8a090' }} />
                             <input
                               type="email"
-                              className="input-sprout"
-                              style={{ paddingLeft: '2.5rem' }}
+                              className="input-sprout pl-10"
                               placeholder="you@example.com"
                               value={waitlistEmail}
                               onChange={e => setWaitlistEmail(e.target.value)}

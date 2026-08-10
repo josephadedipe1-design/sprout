@@ -23,7 +23,7 @@ import ModerationView from '@/components/sprout/views/ModerationView';
 import { Profile } from '@/lib/profiles';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { Leaf } from 'lucide-react';
+import { Leaf, ShieldBan } from 'lucide-react';
 import type { ListingSnap } from '@/components/sprout/views/ListingDetailView';
 
 type MainView = 'feed' | 'market' | 'messages' | 'matching' | 'notifications' | 'profile' | 'search';
@@ -41,7 +41,7 @@ type SubView =
 function AppContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, loading: authLoading, refreshProfile, emailConfirmed, setProfileSetupInProgress } = useAuth();
+  const { user, loading: authLoading, refreshProfile, emailConfirmed, setProfileSetupInProgress, suspended } = useAuth();
   const [mainView, setMainView] = useState<MainView>('feed');
   const [subView, setSubView] = useState<SubView>(null);
   const [feedRefreshKey, setFeedRefreshKey] = useState(0);
@@ -243,6 +243,32 @@ function AppContent() {
       router.replace('/app');
     }
   }, [authLoading, user, searchParams, router]);
+
+  if (suspended) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6" style={{ background: 'var(--bg)' }}>
+        <div className="max-w-md w-full card-sprout p-8 text-center">
+          <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: '#FEE2E2' }}>
+            <ShieldBan className="w-7 h-7" style={{ color: '#B91C1C' }} />
+          </div>
+          <h1 className="text-xl font-bold mb-2" style={{ color: '#2a1f18' }}>Account suspended</h1>
+          <p className="text-sm mb-1" style={{ color: '#5a4035', lineHeight: 1.6 }}>
+            Your Sprout account has been suspended. You can no longer access the app.
+          </p>
+          <p className="text-sm mb-6" style={{ color: '#5a4035', lineHeight: 1.6 }}>
+            If you believe this is a mistake, you can appeal by emailing us at{' '}
+            <a href="mailto:appeals@sprout.app" className="font-semibold underline" style={{ color: 'var(--brand)' }}>appeals@sprout.app</a>.
+          </p>
+          <button
+            onClick={async () => { await supabase.auth.signOut(); router.push('/'); }}
+            className="btn-sprout w-full"
+          >
+            Sign out
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (authLoading || !user || !emailConfirmed) {
     return (

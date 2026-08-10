@@ -57,7 +57,6 @@ interface ReplyItem {
   body: string;
   created_at: string;
   author_first_name: string;
-  author_last_initial?: string | null;
   author_avatar: string;
 }
 
@@ -340,11 +339,11 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
       .eq('post_id', postId)
       .order('created_at', { ascending: true });
     const authorIds = Array.from(new Set((replyRows ?? []).map((r: any) => r.author_id)));
-    const profileMap: Record<string, { first_name: string; last_initial?: string | null; avatar_url: string; avatar_position_x?: number; avatar_position_y?: number }> = {};
+    const profileMap: Record<string, { first_name: string; avatar_url: string; avatar_position_x?: number; avatar_position_y?: number }> = {};
     if (authorIds.length > 0) {
       const { data: profileRows } = await supabase
         .from('profiles')
-        .select('id, first_name, last_initial, avatar_url, avatar_position_x, avatar_position_y')
+        .select('id, first_name, avatar_url, avatar_position_x, avatar_position_y')
         .in('id', authorIds);
       (profileRows ?? []).forEach((p: any) => { profileMap[p.id] = p; });
     }
@@ -353,7 +352,6 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
       body: r.body,
       created_at: r.created_at,
       author_first_name: profileMap[r.author_id]?.first_name || 'Community Member',
-      author_last_initial: profileMap[r.author_id]?.last_initial,
       author_avatar: profileMap[r.author_id]?.avatar_url || '',
       author_avatar_pos_x: profileMap[r.author_id]?.avatar_position_x,
       author_avatar_pos_y: profileMap[r.author_id]?.avatar_position_y,
@@ -389,7 +387,6 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
         body: text,
         created_at: new Date().toISOString(),
         author_first_name: profile?.first_name || 'You',
-        author_last_initial: profile?.last_initial,
         author_avatar: profile?.avatar_url || '',
       };
       setRepliesMap(prev => ({ ...prev, [postId]: [...(prev[postId] ?? []), newReply] }));
@@ -637,7 +634,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
 
                   {/* Listing image or icon */}
                   {listing.image_url ? (
-                    <img src={listing.image_url} alt={listing.title} className={`w-full h-48 object-cover ${isSold ? 'opacity-60' : ''}`} style={{ objectPosition: objectPosition((listing as any).image_pos_x, (listing as any).image_pos_y) }} />
+                    <img src={listing.image_url} alt={listing.title} className={`w-full aspect-video object-cover ${isSold ? 'opacity-60' : ''}`} style={{ objectPosition: objectPosition((listing as any).image_pos_x, (listing as any).image_pos_y) }} />
                   ) : (
                     <div className="w-full h-32 flex flex-col items-center justify-center gap-2" style={{ background: catStyle.bg, opacity: isSold ? 0.6 : 1 }}>
                       <CategoryIcon className="w-10 h-10" style={{ color: catStyle.color, opacity: 0.8 }} />
@@ -761,8 +758,8 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
                     <img
                       src={post.image_url}
                       alt="Announcement image"
-                      className="w-full rounded-xl mb-3 object-cover"
-                      style={{ maxHeight: 400, border: '1px solid var(--border-color)' }}
+                      className="w-full rounded-xl mb-3 aspect-video object-cover"
+                      style={{ border: '1px solid var(--border-color)' }}
                     />
                   )}
                 </div>
@@ -812,7 +809,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
                                 )}
                                 <div className="flex-1 rounded-xl px-3 py-2" style={{ background: 'white', border: '1px solid var(--border-color)' }}>
                                   <div className="flex items-center justify-between mb-0.5">
-                                    <span className="text-xs font-semibold" style={{ color: '#2a1f18' }}>{r.author_last_initial ? `${r.author_first_name} ${r.author_last_initial}.` : r.author_first_name}</span>
+                                    <span className="text-xs font-semibold" style={{ color: '#2a1f18' }}>{r.author_first_name}</span>
                                     <span className="text-xs" style={{ color: '#c4a090' }}>{formatRelativeTime(r.created_at)}</span>
                                   </div>
                                   <p className="text-sm leading-relaxed" style={{ color: '#3a2820' }}>{r.body}</p>
