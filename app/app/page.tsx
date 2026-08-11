@@ -257,7 +257,7 @@ function AppContent() {
           </p>
           <p className="text-sm mb-6" style={{ color: '#5a4035', lineHeight: 1.6 }}>
             If you believe this is a mistake, you can appeal by emailing us at{' '}
-            <a href="mailto:appeals@sprout.app" className="font-semibold underline" style={{ color: 'var(--brand)' }}>appeals@sprout.app</a>.
+            <a href="mailto:appeals@sprout-village.co.uk" className="font-semibold underline" style={{ color: 'var(--brand)' }}>appeals@sprout-village.co.uk</a>.
           </p>
           <button
             onClick={async () => { await supabase.auth.signOut(); router.push('/'); }}
