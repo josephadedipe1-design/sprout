@@ -85,7 +85,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [loadProfile]);
 
   async function signOut() {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      // If the server-side session is already gone (e.g. "session_not_found"),
+      // signOut() throws — but the user should still be logged out locally
+      // rather than getting stuck. Fall through to clearing local state.
+      console.warn('signOut error (continuing to clear local session):', err);
+    }
     setProfile(null);
     setSuspended(false);
   }
