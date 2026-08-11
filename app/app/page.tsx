@@ -52,6 +52,7 @@ function AppContent() {
   const [showWelcome, setShowWelcome] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
   const [hasNearbyJoinNotif, setHasNearbyJoinNotif] = useState(false);
+  const [hasPendingReports, setHasPendingReports] = useState(false);
   const [marketTrigger, setMarketTrigger] = useState(false);
   const [marketOpenListingId, setMarketOpenListingId] = useState<string | null>(null);
   const [matchingInitialTab, setMatchingInitialTab] = useState<'discover' | 'connections' | 'requests' | null>(null);
@@ -120,6 +121,33 @@ function AppContent() {
       setHasNearbyJoinNotif((njCount ?? 0) > 0);
     }
     checkNearbyJoinNotifs();
+  }, [user]);
+
+  useEffect(() => {
+    if (!user || user.id !== '4848415f-2bbe-409a-8443-eb925b0b88e8') return;
+
+    async function checkPendingReports() {
+      const lastSeen = localStorage.getItem('sprout_reports_seen_at');
+      let query = supabase
+        .from('reports')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'pending');
+      if (lastSeen) query = query.gt('created_at', lastSeen);
+      const { count } = await query;
+      setHasPendingReports((count ?? 0) > 0);
+    }
+
+    checkPendingReports();
+    const channel = supabase
+      .channel('admin-report-notifications')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'reports', filter: 'status=eq.pending' }, () => {
+        setHasPendingReports(true);
+      })
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
   }, [user]);
 
   useEffect(() => {
@@ -239,7 +267,11 @@ function AppContent() {
   useEffect(() => {
     if (!authLoading && user && searchParams.get('welcome') === '1') {
       setShowWelcome(true);
-      // Remove the query param from the URL without a reload
+      router.replace('/app');
+      return;
+    }
+    if (!authLoading && user && user.id === '4848415f-2bbe-409a-8443-eb925b0b88e8' && searchParams.get('view') === 'moderation') {
+      openModeration();
       router.replace('/app');
     }
   }, [authLoading, user, searchParams, router]);
@@ -290,6 +322,12 @@ function AppContent() {
         onGoToMatching={() => { setShowWelcome(false); setMatchingInitialTab(null); setMainView('matching'); }}
       />
     );
+  }
+
+  function openModeration() {
+    localStorage.setItem('sprout_reports_seen_at', new Date().toISOString());
+    setHasPendingReports(false);
+    setSubView({ type: 'moderation' });
   }
 
   function navigate(view: MainView) {
@@ -415,6 +453,7 @@ function AppContent() {
           <ProfileView
             onEditProfile={() => setSubView({ type: 'editprofile' })}
             onSettings={() => setSubView({ type: 'settings' })}
+            onOpenThread={(id) => setSubView({ type: 'thread', postId: id })}
           />
         );
       case 'search':
@@ -431,10 +470,11 @@ function AppContent() {
         onNav={navigate}
         onNewPost={() => setSubView({ type: 'newpost' })}
         onBroadcast={() => setSubView({ type: 'broadcast' })}
-        onModeration={() => setSubView({ type: 'moderation' })}
+        onModeration={openModeration}
         hasUnread={hasUnread}
         unreadMessages={unreadMessages}
         hasNearbyJoinNotif={hasNearbyJoinNotif}
+        hasPendingReports={hasPendingReports}
       />
 
       <main

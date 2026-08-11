@@ -130,6 +130,7 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
   const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [actioning, setActioning] = useState<string | null>(null);
+  const [sendError, setSendError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -315,6 +316,7 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
   async function send() {
     if (!input.trim() || !activeId || !user) return;
     const text = input.trim();
+    setSendError(null);
     setInput('');
 
     const optimistic: MsgDisplay = { id: `tmp-${Date.now()}`, from: 'me', text, time: 'just now' };
@@ -326,9 +328,10 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
       body: text,
     }).select().maybeSingle();
 
-    if (insertError) {
-      console.error('Failed to send message:', insertError);
+    if (insertError || !inserted) {
       setMessages(prev => prev.filter(m => m.id !== optimistic.id));
+      setInput(text);
+      setSendError('Your message could not be sent. Please try again.');
       return;
     }
 
@@ -337,6 +340,7 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
         m.id === optimistic.id ? { ...m, id: inserted.id, time: formatMsgTime(inserted.created_at) } : m
       ));
     }
+
     await supabase.from('conversations').update({
       last_message: text,
       last_message_at: new Date().toISOString(),
@@ -797,6 +801,9 @@ export default function MessagesView({ openWithUserId, onConversationOpened, mes
                   <div className="px-3 pt-2.5 pb-0 flex items-center gap-2.5 border-b" style={{ borderColor: 'var(--border-color)' }}>
                     <ListingCard listing={activeConv.listing} compact />
                   </div>
+                )}
+                {sendError && (
+                  <p className="px-3 pt-2 text-sm text-center" style={{ color: '#b42318' }}>{sendError}</p>
                 )}
                 <div className="flex items-center gap-2 max-w-3xl mx-auto p-3">
                   <input

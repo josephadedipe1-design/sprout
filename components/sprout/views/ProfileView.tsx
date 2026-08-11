@@ -1,11 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { MapPin, Edit3, Settings, Heart, FileText, ShoppingBag, UserPlus, Baby, Users } from 'lucide-react';
+import { useEffect, useState, useCallback } from 'react';
+import { MapPin, Edit3, Settings, Heart, FileText, ShoppingBag, UserPlus, Baby, Users, Bookmark, MessageCircle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { fetchUserInterests, ageMonthsToLabel } from '@/lib/profiles';
-import { formatLocation, objectPosition } from '@/lib/utils';
+import { formatLocation, formatName, objectPosition } from '@/lib/utils';
+import { renderAnnouncementMarkdown } from '@/lib/announcement-markdown';
+import type { DbProfile } from '@/lib/types';
 
 interface ActivityItem {
   id: string;
@@ -22,6 +24,20 @@ interface Stats {
   listings: number;
 }
 
+interface SavedPost {
+  id: string;
+  post_type: string;
+  body: string;
+  created_at: string;
+  author_id: string;
+  profile: DbProfile | null;
+  is_official: boolean;
+  image_url: string | null;
+  likes: number;
+  comments: number;
+  saved: boolean;
+}
+
 const PARENT_TYPE_META: Record<string, { Icon: React.ElementType; label: string; color: string; bg: string }> = {
   expecting: { Icon: Baby,  label: 'Expecting',          color: '#2563EB', bg: '#EFF4FF' },
   parent:   { Icon: Heart, label: 'Parent',             color: 'var(--brand)', bg: 'var(--brand-light)' },
@@ -32,6 +48,15 @@ const TYPE_META: Record<string, { Icon: React.ElementType; color: string; bg: st
   post:       { Icon: FileText,    color: 'var(--brand)',  bg: 'var(--brand-light)', label: 'Post' },
   listing:    { Icon: ShoppingBag, color: '#16a34a',       bg: '#d6ede3',            label: 'Market' },
   connection: { Icon: UserPlus,    color: '#2c5faa',       bg: '#dce8fb',            label: 'Connection' },
+};
+
+const TYPE_COLORS: Record<string, { bg: string; text: string; label: string }> = {
+  question: { bg: '#FFF5EF', text: '#7D3C1A', label: 'Question' },
+  support:  { bg: '#EFF4FF', text: '#2563EB', label: 'Support' },
+  meetup:   { bg: '#ECFDF5', text: '#059669', label: 'Meetup' },
+  market:   { bg: '#FFF7ED', text: '#D97706', label: 'Market' },
+  tip:      { bg: '#F0FDF4', text: '#16A34A', label: 'Tip' },
+  listing:  { bg: '#FFF7ED', text: '#D97706', label: 'Market' },
 };
 
 function formatRelativeTime(dateStr: string): string {
@@ -49,14 +74,18 @@ function formatRelativeTime(dateStr: string): string {
 interface ProfileViewProps {
   onEditProfile: () => void;
   onSettings: () => void;
+  onOpenThread: (postId: string) => void;
 }
 
-export default function ProfileView({ onEditProfile, onSettings }: ProfileViewProps) {
+export default function ProfileView({ onEditProfile, onSettings, onOpenThread }: ProfileViewProps) {
   const { profile, user } = useAuth();
   const [stats, setStats] = useState<Stats>({ posts: 0, connections: 0, listings: 0 });
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [interests, setInterests] = useState<string[]>([]);
   const [childrenAges, setChildrenAges] = useState<string[]>([]);
+  const [tab, setTab] = useState<'activity' | 'saved'>('activity');
+  const [savedPosts, setSavedPosts] = useState<SavedPost[]>([]);
+  const [savedLoading, setSavedLoading] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -115,6 +144,80 @@ export default function ProfileView({ onEditProfile, onSettings }: ProfileViewPr
       });
     }
   }, [user]);
+
+  const loadSavedPosts = useCallback(async () => {
+    if (!user) return;
+    setSavedLoading(true);
+
+    const { data: saves, error } = await supabase
+      .from('post_saves')
+      .select('post_id, saved_at:created_at')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+
+    if (error || !saves || saves.length === 0) {
+      setSavedPosts([]);
+      setSavedLoading(false);
+      return;
+    }
+
+    const postIds = saves.map(s => s.post_id);
+
+    const { data: posts } = await supabase
+      .from('posts')
+      .select('*, likes(count), reply_count:replies(count)')
+      .in('id', postIds)
+      .order('created_at', { ascending: false });
+
+    const authorIds = Array.from(new Set((posts ?? []).map((p: any) => p.author_id).filter(Boolean)));
+    const profileMap: Record<string, DbProfile> = {};
+    if (authorIds.length > 0) {
+      const { data: profileRows } = await supabase
+        .from('profiles')
+        .select('*')
+        .in('id', authorIds);
+      (profileRows ?? []).forEach((p: DbProfile) => { profileMap[p.id] = p; });
+    }
+
+    const { data: myLikes } = await supabase
+      .from('likes')
+      .select('post_id')
+      .eq('user_id', user.id);
+    const likedIds = new Set((myLikes ?? []).map(l => l.post_id));
+
+    const savedIdSet = new Set(postIds);
+
+    const mapped: SavedPost[] = (posts ?? []).map((p: any) => ({
+      id: p.id,
+      post_type: p.post_type,
+      body: p.body,
+      created_at: p.created_at,
+      author_id: p.author_id,
+      profile: profileMap[p.author_id] ?? null,
+      is_official: p.is_official ?? false,
+      image_url: p.image_url ?? null,
+      likes: p.likes?.[0]?.count ?? 0,
+      comments: p.reply_count?.[0]?.count ?? 0,
+      saved: savedIdSet.has(p.id),
+      liked: likedIds.has(p.id),
+    })) as SavedPost[];
+
+    setSavedPosts(mapped);
+    setSavedLoading(false);
+  }, [user]);
+
+  useEffect(() => {
+    if (tab === 'saved' && user) {
+      loadSavedPosts();
+    }
+  }, [tab, user, loadSavedPosts]);
+
+  async function unsavePost(post: SavedPost, e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!user) return;
+    await supabase.from('post_saves').delete().eq('post_id', post.id).eq('user_id', user.id);
+    setSavedPosts(prev => prev.filter(p => p.id !== post.id));
+  }
 
   const firstName = profile?.first_name || '';
   const lastInitial = profile?.last_initial || '';
@@ -249,41 +352,202 @@ export default function ProfileView({ onEditProfile, onSettings }: ProfileViewPr
         ))}
       </div>
 
+      {/* Tab toggle */}
+      <div className="flex gap-1 mb-4 p-1 rounded-xl" style={{ background: '#f4f3f0' }}>
+        <button
+          onClick={() => setTab('activity')}
+          className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all"
+          style={{
+            background: tab === 'activity' ? 'white' : 'transparent',
+            color: tab === 'activity' ? '#2a1f18' : '#9a8070',
+            boxShadow: tab === 'activity' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+          }}
+        >
+          Activity
+        </button>
+        <button
+          onClick={() => setTab('saved')}
+          className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-1.5"
+          style={{
+            background: tab === 'saved' ? 'white' : 'transparent',
+            color: tab === 'saved' ? '#2a1f18' : '#9a8070',
+            boxShadow: tab === 'saved' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+          }}
+        >
+          <Bookmark className="w-3.5 h-3.5" /> Saved
+        </button>
+      </div>
+
       {/* Activity feed */}
-      <h2 className="text-sm font-bold uppercase tracking-wide mb-3" style={{ color: '#b8a090' }}>Activity</h2>
-      {activity.length === 0 ? (
-        <div className="card-sprout p-6 text-center">
-          <p className="text-sm" style={{ color: '#9a8070' }}>No activity yet. Start posting or listing items!</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {activity.map((item) => {
-            const meta = TYPE_META[item.type];
-            return (
-              <div key={item.id} className="card-sprout p-4 flex items-start gap-3">
-                <div
-                  className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5"
-                  style={{ background: meta.bg }}
-                >
-                  <meta.Icon className="w-4 h-4" style={{ color: meta.color }} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs font-semibold" style={{ color: meta.color }}>{meta.label}</span>
-                    <span className="text-xs" style={{ color: '#c4a090' }}>{item.time}</span>
-                  </div>
-                  <p className="text-sm leading-relaxed" style={{ color: '#3a2820' }}>{item.text}</p>
-                  {item.reactions > 0 && (
-                    <div className="flex items-center gap-1 mt-2 text-xs" style={{ color: '#9a8070' }}>
-                      <Heart className="w-3.5 h-3.5" fill="currentColor" style={{ color: '#e07070' }} />
-                      {item.reactions} reactions
+      {tab === 'activity' && (
+        <>
+          {activity.length === 0 ? (
+            <div className="card-sprout p-6 text-center">
+              <p className="text-sm" style={{ color: '#9a8070' }}>No activity yet. Start posting or listing items!</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {activity.map((item) => {
+                const meta = TYPE_META[item.type];
+                return (
+                  <div key={item.id} className="card-sprout p-4 flex items-start gap-3">
+                    <div
+                      className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5"
+                      style={{ background: meta.bg }}
+                    >
+                      <meta.Icon className="w-4 h-4" style={{ color: meta.color }} />
                     </div>
-                  )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-semibold" style={{ color: meta.color }}>{meta.label}</span>
+                        <span className="text-xs" style={{ color: '#c4a090' }}>{item.time}</span>
+                      </div>
+                      <p className="text-sm leading-relaxed" style={{ color: '#3a2820' }}>{item.text}</p>
+                      {item.reactions > 0 && (
+                        <div className="flex items-center gap-1 mt-2 text-xs" style={{ color: '#9a8070' }}>
+                          <Heart className="w-3.5 h-3.5" fill="currentColor" style={{ color: '#e07070' }} />
+                          {item.reactions} reactions
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Saved posts */}
+      {tab === 'saved' && (
+        <>
+          {savedLoading ? (
+            <div className="space-y-4">
+              {[1, 2].map(i => (
+                <div key={i} className="card-sprout p-4 animate-pulse">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-10 h-10 rounded-full" style={{ background: '#e8e4de' }} />
+                    <div className="flex-1 space-y-1">
+                      <div className="h-3 rounded" style={{ background: '#e8e4de', width: '40%' }} />
+                      <div className="h-2 rounded" style={{ background: '#e8e4de', width: '60%' }} />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="h-3 rounded" style={{ background: '#e8e4de' }} />
+                    <div className="h-3 rounded" style={{ background: '#e8e4de', width: '80%' }} />
+                  </div>
                 </div>
+              ))}
+            </div>
+          ) : savedPosts.length === 0 ? (
+            <div className="flex flex-col items-center text-center py-14">
+              <div className="w-14 h-14 rounded-full flex items-center justify-center mb-4" style={{ background: 'var(--brand-light)' }}>
+                <Bookmark className="w-7 h-7" style={{ color: 'var(--brand)' }} />
               </div>
-            );
-          })}
-        </div>
+              <p className="text-base font-semibold mb-1" style={{ color: '#2a1f18' }}>No saved posts yet</p>
+              <p className="text-sm" style={{ color: '#9a8070' }}>
+                Tap the bookmark icon on any post to save it here.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {savedPosts.map((post) => {
+                const typeInfo = TYPE_COLORS[post.post_type] ?? TYPE_COLORS.question;
+                const isOfficial = post.is_official;
+                const authorName = isOfficial
+                  ? 'Sprout Team'
+                  : (formatName(post.profile?.first_name || '', post.profile?.last_initial) || 'Community Member');
+                const authorAvatar = isOfficial ? '' : (post.profile?.avatar_url || '');
+                const authorLocation = isOfficial
+                  ? ''
+                  : (post.profile?.postcode_district
+                    ? formatLocation(post.profile.postcode_district, post.profile.neighborhood)
+                    : '');
+                const timeAgo = formatRelativeTime(post.created_at);
+
+                return (
+                  <article key={post.id} className="card-sprout overflow-hidden">
+                    <div className="p-4 cursor-pointer hover:bg-orange-50/30 transition-colors" onClick={() => onOpenThread(post.id)}>
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-2.5">
+                          {isOfficial ? (
+                            <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'var(--brand)' }}>
+                              <MapPin className="w-5 h-5 text-white" />
+                            </div>
+                          ) : authorAvatar ? (
+                            <img src={authorAvatar} alt={authorName} className="w-10 h-10 rounded-full object-cover" style={{ objectPosition: objectPosition(post.profile?.avatar_position_x, post.profile?.avatar_position_y) }} />
+                          ) : (
+                            <div
+                              className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold"
+                              style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}
+                            >
+                              {authorName.charAt(0)}
+                            </div>
+                          )}
+                          <div>
+                            <p className="text-sm font-semibold" style={{ color: '#2a1f18' }}>{authorName}</p>
+                            <div className="flex items-center gap-1 text-xs" style={{ color: '#9a8070' }}>
+                              {authorLocation && <><MapPin className="w-3 h-3" />{authorLocation} · </>}
+                              {timeAgo}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {isOfficial ? (
+                            <span className="tag-sprout" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>Announcement</span>
+                          ) : (
+                            <span className="tag-sprout" style={{ background: typeInfo.bg, color: typeInfo.text }}>{typeInfo.label}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div
+                        className="text-sm leading-relaxed mb-3 announcement-body"
+                        style={{ color: '#3a2820', lineHeight: 1.6 }}
+                        dangerouslySetInnerHTML={{ __html: renderAnnouncementMarkdown(post.body) }}
+                      />
+                      {post.image_url && (
+                        <img
+                          src={post.image_url}
+                          alt="Post image"
+                          className="w-full rounded-xl mb-3 aspect-video object-cover"
+                          style={{ border: '1px solid var(--border-color)' }}
+                        />
+                      )}
+                    </div>
+
+                    <div className="flex items-center border-t px-4 py-2.5" style={{ borderColor: 'var(--border-color)' }}>
+                      <button
+                        onClick={() => onOpenThread(post.id)}
+                        className="flex items-center gap-1.5 text-sm mr-5 transition-colors"
+                        style={{ color: '#9a8070' }}
+                      >
+                        <Heart className="w-4 h-4" fill="none" />
+                        {post.likes}
+                      </button>
+                      <button
+                        onClick={() => onOpenThread(post.id)}
+                        className="flex items-center gap-1.5 text-sm mr-5 transition-colors"
+                        style={{ color: '#9a8070' }}
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                        {post.comments}
+                      </button>
+                      <button
+                        className="flex items-center gap-1.5 text-sm ml-auto transition-colors"
+                        style={{ color: 'var(--brand)' }}
+                        onClick={(e) => unsavePost(post, e)}
+                        title="Remove from saved"
+                      >
+                        <Bookmark className="w-4 h-4" fill="var(--brand)" />
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

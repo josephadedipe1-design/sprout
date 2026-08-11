@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, Shield, Flag, CheckCircle, XCircle, Loader2, User, MessageSquare, FileText, Filter, Trash2, Ban, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Shield, Flag, CheckCircle, XCircle, Loader2, User, MessageSquare, FileText, Filter, Trash2, Ban, ShieldCheck, ShoppingBag } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 
@@ -19,6 +19,7 @@ interface ReportRow {
   user_id: string | null;
   post_id: string | null;
   message_id: string | null;
+  reported_listing_id: string | null;
 }
 
 interface ReportedUser {
@@ -33,7 +34,7 @@ interface ReporterInfo {
 }
 
 interface ContentPreview {
-  kind: 'post' | 'user' | 'message' | 'unknown';
+  kind: 'post' | 'user' | 'message' | 'listing' | 'unknown';
   text: string | null;
   image_url: string | null;
   authorName: string | null;
@@ -135,11 +136,22 @@ export default function ModerationView({ onBack }: ModerationViewProps) {
       });
     }
 
-    // Fetch reported user profiles (and post/message authors for suspend)
+    const listingIds = Array.from(new Set(rows.map((r) => r.reported_listing_id).filter(Boolean))) as string[];
+    const listingMap: Record<string, { title: string; seller_id: string; image_url: string | null }> = {};
+    if (listingIds.length > 0) {
+      const { data: listingRows } = await supabase.from('listings').select('id, title, seller_id').in('id', listingIds);
+      const { data: imageRows } = await supabase.from('listing_images').select('listing_id, url').in('listing_id', listingIds).order('position', { ascending: true });
+      const imageMap: Record<string, string> = {};
+      (imageRows ?? []).forEach((image: any) => { if (!imageMap[image.listing_id]) imageMap[image.listing_id] = image.url; });
+      (listingRows ?? []).forEach((listing: any) => { listingMap[listing.id] = { title: listing.title, seller_id: listing.seller_id, image_url: imageMap[listing.id] ?? null }; });
+    }
+
+    // Fetch reported user profiles (and post/message/listing authors for suspend)
     const reportedUserIds = Array.from(new Set(rows.map((r) => r.user_id).filter(Boolean))) as string[];
     const authorIdsFromPosts = Array.from(new Set(Object.values(postMap).map((p) => p.author_id).filter(Boolean))) as string[];
     const authorIdsFromMessages = Array.from(new Set(Object.values(messageMap).map((m) => m.sender_id).filter(Boolean))) as string[];
-    const allReportedUserIds = Array.from(new Set([...reportedUserIds, ...authorIdsFromPosts, ...authorIdsFromMessages]));
+    const authorIdsFromListings = Array.from(new Set(Object.values(listingMap).map((l) => l.seller_id).filter(Boolean))) as string[];
+    const allReportedUserIds = Array.from(new Set([...reportedUserIds, ...authorIdsFromPosts, ...authorIdsFromMessages, ...authorIdsFromListings]));
     const reportedUserMap: Record<string, ReportedUser> = {};
     if (allReportedUserIds.length > 0) {
       const { data: userRows } = await supabase
@@ -152,7 +164,7 @@ export default function ModerationView({ onBack }: ModerationViewProps) {
     }
 
     // Also fetch post author names for previews
-    const authorIds = Array.from(new Set(Object.values(postMap).map((p) => p.author_id).filter(Boolean)));
+    const authorIds = Array.from(new Set([...Object.values(postMap).map((p) => p.author_id), ...Object.values(listingMap).map((l) => l.seller_id)].filter(Boolean)));
     const authorMap: Record<string, string> = {};
     if (authorIds.length > 0) {
       const { data: authorRows } = await supabase
@@ -183,6 +195,9 @@ export default function ModerationView({ onBack }: ModerationViewProps) {
           image_url: null,
           authorName: null,
         };
+      } else if (r.reported_listing_id && listingMap[r.reported_listing_id]) {
+        const listing = listingMap[r.reported_listing_id];
+        preview = { kind: 'listing', text: listing.title, image_url: listing.image_url, authorName: authorMap[listing.seller_id] ?? null };
       } else if (r.user_id && reportedUserMap[r.user_id]) {
         const u = reportedUserMap[r.user_id];
         preview = {
@@ -201,6 +216,8 @@ export default function ModerationView({ onBack }: ModerationViewProps) {
         reportedUser = reportedUserMap[postMap[r.post_id].author_id];
       } else if (r.message_id && messageMap[r.message_id] && reportedUserMap[messageMap[r.message_id].sender_id]) {
         reportedUser = reportedUserMap[messageMap[r.message_id].sender_id];
+      } else if (r.reported_listing_id && listingMap[r.reported_listing_id] && reportedUserMap[listingMap[r.reported_listing_id].seller_id]) {
+        reportedUser = reportedUserMap[listingMap[r.reported_listing_id].seller_id];
       }
 
       return {
@@ -235,6 +252,8 @@ export default function ModerationView({ onBack }: ModerationViewProps) {
       ({ error: delErr } = await supabase.from('posts').delete().eq('id', report.post_id));
     } else if (report.message_id) {
       ({ error: delErr } = await supabase.from('messages').delete().eq('id', report.message_id));
+    } else if (report.reported_listing_id) {
+      ({ error: delErr } = await supabase.from('listings').delete().eq('id', report.reported_listing_id));
     }
     if (delErr) {
       setActingId(null);
@@ -255,6 +274,10 @@ export default function ModerationView({ onBack }: ModerationViewProps) {
     if (!uid && report.message_id) {
       const { data: m } = await supabase.from('messages').select('sender_id').eq('id', report.message_id).maybeSingle();
       uid = m?.sender_id ?? null;
+    }
+    if (!uid && report.reported_listing_id) {
+      const { data: l } = await supabase.from('listings').select('seller_id').eq('id', report.reported_listing_id).maybeSingle();
+      uid = l?.seller_id ?? null;
     }
     if (!uid) return;
     setActingId(report.id);
@@ -352,7 +375,7 @@ export default function ModerationView({ onBack }: ModerationViewProps) {
         <div className="space-y-3">
           {reports.map((r) => {
             const style = STATUS_STYLES[r.status] ?? STATUS_STYLES.pending;
-            const Icon = r.preview?.kind === 'post' ? FileText : r.preview?.kind === 'message' ? MessageSquare : r.preview?.kind === 'user' ? User : Flag;
+            const Icon = r.preview?.kind === 'post' ? FileText : r.preview?.kind === 'message' ? MessageSquare : r.preview?.kind === 'listing' ? ShoppingBag : r.preview?.kind === 'user' ? User : Flag;
             return (
               <div key={r.id} className="card-sprout p-4">
                 {/* Header row */}
@@ -381,7 +404,7 @@ export default function ModerationView({ onBack }: ModerationViewProps) {
                     <div className="flex items-center gap-1.5 mb-1.5">
                       <Icon className="w-3.5 h-3.5" style={{ color: '#9a8070' }} />
                       <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#9a8070' }}>
-                        {r.preview.kind === 'post' ? 'Reported post' : r.preview.kind === 'message' ? 'Reported message' : 'Reported user'}
+                        {r.preview.kind === 'post' ? 'Reported post' : r.preview.kind === 'message' ? 'Reported message' : r.preview.kind === 'listing' ? 'Reported listing' : 'Reported user'}
                       </span>
                     </div>
                     {r.preview.image_url && (
@@ -393,8 +416,8 @@ export default function ModerationView({ onBack }: ModerationViewProps) {
                     {r.preview.authorName && r.preview.kind === 'user' && (
                       <p className="text-sm font-medium" style={{ color: '#3a2820' }}>{r.preview.authorName}</p>
                     )}
-                    {r.preview.authorName && r.preview.kind === 'post' && (
-                      <p className="text-xs mt-1.5" style={{ color: '#9a8070' }}>Posted by {r.preview.authorName}</p>
+                    {r.preview.authorName && (r.preview.kind === 'post' || r.preview.kind === 'listing') && (
+                      <p className="text-xs mt-1.5" style={{ color: '#9a8070' }}>{r.preview.kind === 'listing' ? 'Listed by' : 'Posted by'} {r.preview.authorName}</p>
                     )}
                   </div>
                 )}
@@ -416,7 +439,7 @@ export default function ModerationView({ onBack }: ModerationViewProps) {
                 {/* Action buttons */}
                 {r.status === 'pending' ? (
                   <>
-                    {(r.post_id || r.message_id) && (
+                    {(r.post_id || r.message_id || r.reported_listing_id) && (
                       <button
                         onClick={() => deleteContent(r)}
                         disabled={actingId === r.id}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, MapPin, Leaf, Copy, Check as CheckIcon, ShoppingBag, Tag, Car, Moon, Gamepad2, Package, Utensils, Home, BookOpen, Box, Trash2, Loader2, Send, Flag } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, MapPin, Leaf, Copy, Check as CheckIcon, ShoppingBag, Tag, Car, Moon, Gamepad2, Package, Utensils, Home, BookOpen, Box, Trash2, Loader2, Send, Flag, Pencil } from 'lucide-react';
 import { renderAnnouncementMarkdown } from '@/lib/announcement-markdown';
 // Share2 kept for the first-in-area invite card only
 import { supabase } from '@/lib/supabase';
@@ -10,6 +10,7 @@ import { sendNotificationEmail, truncatePreview } from '@/lib/notifications';
 import type { DbProfile, DbListing } from '@/lib/types';
 import { getCategoryStyle, formatLocation, formatName, haversineKm, kmToMiles, objectPosition } from '@/lib/utils';
 import ReportModal, { type ReportTarget } from '@/components/sprout/ReportModal';
+import EditTextModal from '@/components/sprout/EditTextModal';
 
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
   Travel: Car, Sleep: Moon, Clothing: Tag, Toys: Gamepad2,
@@ -21,6 +22,7 @@ interface Post {
   post_type: string;
   body: string;
   created_at: string;
+  edited_at: string | null;
   author_id: string;
   profile: DbProfile | null;
   is_official: boolean;
@@ -56,6 +58,8 @@ interface ReplyItem {
   id: string;
   body: string;
   created_at: string;
+  edited_at: string | null;
+  author_id: string;
   author_first_name: string;
   author_avatar: string;
 }
@@ -104,6 +108,8 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
   const [replyTextMap, setReplyTextMap] = useState<Record<string, string>>({});
   const [replySubmittingMap, setReplySubmittingMap] = useState<Record<string, boolean>>({});
   const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
+  const [editTarget, setEditTarget] = useState<{ type: 'post' | 'reply'; id: string; body: string; postId?: string } | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
 
   const isNewUser = !!(
     profile?.created_at &&
@@ -195,6 +201,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
       post_type: p.post_type,
       body: p.body,
       created_at: p.created_at,
+      edited_at: p.edited_at ?? null,
       author_id: p.author_id,
       profile: profileMap[p.author_id] ?? null,
       is_official: p.is_official ?? false,
@@ -351,6 +358,8 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
       id: r.id,
       body: r.body,
       created_at: r.created_at,
+      edited_at: r.edited_at ?? null,
+      author_id: r.author_id,
       author_first_name: profileMap[r.author_id]?.first_name || 'Community Member',
       author_avatar: profileMap[r.author_id]?.avatar_url || '',
       author_avatar_pos_x: profileMap[r.author_id]?.avatar_position_x,
@@ -386,6 +395,8 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
         id: crypto.randomUUID(),
         body: text,
         created_at: new Date().toISOString(),
+        edited_at: null,
+        author_id: user.id,
         author_first_name: profile?.first_name || 'You',
         author_avatar: profile?.avatar_url || '',
       };
@@ -394,6 +405,23 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
       setDbPosts(prev => prev.map(p => p.id === postId ? { ...p, comments: p.comments + 1 } : p));
     }
     setReplySubmittingMap(prev => ({ ...prev, [postId]: false }));
+  }
+
+  async function saveEdit(body: string) {
+    if (!editTarget || !body || editSaving) return;
+    setEditSaving(true);
+    const editedAt = new Date().toISOString();
+    const table = editTarget.type === 'post' ? 'posts' : 'replies';
+    const { error } = await supabase.from(table).update({ body, edited_at: editedAt }).eq('id', editTarget.id).eq(editTarget.type === 'post' ? 'author_id' : 'author_id', user?.id ?? '');
+    if (!error) {
+      if (editTarget.type === 'post') {
+        setDbPosts(prev => prev.map(post => post.id === editTarget.id ? { ...post, body, edited_at: editedAt } : post));
+      } else if (editTarget.postId) {
+        setRepliesMap(prev => ({ ...prev, [editTarget.postId!]: (prev[editTarget.postId!] ?? []).map(reply => reply.id === editTarget.id ? { ...reply, body, edited_at: editedAt } : reply) }));
+      }
+      setEditTarget(null);
+    }
+    setEditSaving(false);
   }
 
   useEffect(() => {
@@ -697,7 +725,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
                         <p className="text-sm font-semibold" style={{ color: '#2a1f18' }}>{authorName}</p>
                         <div className="flex items-center gap-1 text-xs" style={{ color: '#9a8070' }}>
                           {authorLocation && <><MapPin className="w-3 h-3" />{authorLocation} · </>}
-                          {timeAgo}
+                          {timeAgo}{post.edited_at && ' (edited)'}
                         </div>
                       </div>
                     </div>
@@ -721,14 +749,24 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
                             style={{ background: 'white', borderColor: 'var(--border-color)', minWidth: 140 }}
                           >
                             {post.author_id === user?.id ? (
-                              <button
+                              <>
+                                <button
+                                  onClick={() => { setEditTarget({ type: 'post', id: post.id, body: post.body }); setMenuPostId(null); }}
+                                  className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-left transition-colors hover:bg-orange-50"
+                                  style={{ color: '#7a6055' }}
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                  Edit post
+                                </button>
+                                <button
                                 onClick={() => deletePost(post.id)}
                                 className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-left transition-colors hover:bg-red-50"
                                 style={{ color: '#E53E3E' }}
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                                 Delete post
-                              </button>
+                                </button>
+                              </>
                             ) : (
                               <button
                                 onClick={() => { setReportTarget({ type: 'post', postId: post.id, userId: post.author_id }); setMenuPostId(null); }}
@@ -806,9 +844,12 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
                                 <div className="flex-1 rounded-xl px-3 py-2" style={{ background: 'white', border: '1px solid var(--border-color)' }}>
                                   <div className="flex items-center justify-between mb-0.5">
                                     <span className="text-xs font-semibold" style={{ color: '#2a1f18' }}>{r.author_first_name}</span>
-                                    <span className="text-xs" style={{ color: '#c4a090' }}>{formatRelativeTime(r.created_at)}</span>
+                                    <span className="text-xs" style={{ color: '#c4a090' }}>{formatRelativeTime(r.created_at)}{r.edited_at && ' (edited)'}</span>
                                   </div>
                                   <div className="text-sm leading-relaxed announcement-body" style={{ color: '#3a2820' }} dangerouslySetInnerHTML={{ __html: renderAnnouncementMarkdown(r.body) }} />
+                                  {r.author_id === user?.id && (
+                                    <button onClick={() => setEditTarget({ type: 'reply', id: r.id, body: r.body, postId: post.id })} className="text-xs mt-2 font-semibold" style={{ color: 'var(--brand)' }}>Edit reply</button>
+                                  )}
                                 </div>
                               </div>
                             ))}
@@ -905,6 +946,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
         </article>
       )}
       <ReportModal target={reportTarget} open={!!reportTarget} onClose={() => setReportTarget(null)} />
+      {editTarget && <EditTextModal title={editTarget.type === 'post' ? 'Edit post' : 'Edit reply'} initialText={editTarget.body} saving={editSaving} onClose={() => setEditTarget(null)} onSave={saveEdit} />}
     </div>
   );
 }

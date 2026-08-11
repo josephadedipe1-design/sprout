@@ -16,7 +16,7 @@ const TOTAL_STEPS = 8;
 
 const PARENT_STAGES = [
   { id: 'expecting', title: 'Expecting', desc: "I'm pregnant and due soon", Icon: Baby },
-  { id: 'parent',   title: 'Already a parent', desc: 'I have a child or children aged 0–11', Icon: Heart },
+  { id: 'parent',   title: 'Already a parent', desc: 'I have a child or children aged 0–5', Icon: Heart },
   { id: 'both',     title: 'Both', desc: "I have a child or children and I'm expecting again", Icon: Users },
 ];
 

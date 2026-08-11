@@ -61,7 +61,7 @@ export default function HelpPage() {
             { icon: BookOpen, title: 'Community Guidelines', href: '/guidelines', color: '#059669', bg: '#ECFDF5' },
             { icon: Shield, title: 'Meetup Safety', href: '/safety', color: '#059669', bg: '#ECFDF5' },
             { icon: Flag, title: 'Report a Problem', href: '#report', color: '#dc2626', bg: '#FEF2F2' },
-            { icon: Mail, title: 'Email Support', href: 'mailto:hello@sprout.app', color: '#2563eb', bg: '#EFF4FF' },
+            { icon: Mail, title: 'Email Support', href: 'mailto:hello@sprout-village.co.uk', color: '#2563eb', bg: '#EFF4FF' },
             { icon: MessageCircle, title: 'Privacy Policy', href: '/privacy', color: '#7D3C1A', bg: '#FFF5EF' },
           ].map(({ icon: Icon, title, href, color, bg }) => (
             <Link key={title} href={href} className="card-sprout p-4 flex items-center gap-3 transition-opacity hover:opacity-80">
@@ -97,11 +97,11 @@ export default function HelpPage() {
           </div>
           <p className="text-sm mb-4" style={{ color: '#5a4035' }}>
             To report abusive content, a safety concern, or a technical issue, email us directly at{' '}
-            <a href="mailto:report@sprout.app" className="font-semibold underline" style={{ color: 'var(--brand)' }}>report@sprout.app</a>{' '}
+            <a href="mailto:reports@sprout-village.co.uk" className="font-semibold underline" style={{ color: 'var(--brand)' }}>reports@sprout-village.co.uk</a>{' '}
             with as much detail as possible (screenshots help). For urgent safety concerns, please also contact your local authorities.
           </p>
           <a
-            href="mailto:report@sprout.app"
+            href="mailto:reports@sprout-village.co.uk"
             className="btn-brand text-sm inline-flex"
           >
             Send a report

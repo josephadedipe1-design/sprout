@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, MapPin, Heart, MessageCircle, Share2, CheckCircle, Trash2, Car, Moon, Tag, Gamepad2, Package, Utensils, Home, BookOpen, Box, ShoppingBag, Pencil, X, ImagePlus, Loader2, Send, Move } from 'lucide-react';
+import { ArrowLeft, MapPin, Heart, MessageCircle, Share2, CheckCircle, Trash2, Car, Moon, Tag, Gamepad2, Package, Utensils, Home, BookOpen, Box, ShoppingBag, Pencil, X, ImagePlus, Loader2, Send, Move, Flag } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import type { DbListing, DbProfile } from '@/lib/types';
 import { getCategoryStyle, formatLocation, objectPosition } from '@/lib/utils';
 import { sendNotificationEmail, truncatePreview } from '@/lib/notifications';
 import ImageRepositioner from '@/components/sprout/ImageRepositioner';
+import ReportModal, { type ReportTarget } from '@/components/sprout/ReportModal';
 
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
   Travel: Car, Sleep: Moon, Clothing: Tag, Toys: Gamepad2,
@@ -54,6 +55,7 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('loading');
+  const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
 
   // Composer for non-connected users
   const [showComposer, setShowComposer] = useState(false);
@@ -449,6 +451,12 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
           </div>
         )}
 
+        {!isOwner && (
+          <button onClick={() => setReportTarget({ type: 'listing', listingId: listing.id, userId: listing.seller_id })} className="flex items-center gap-2 text-sm font-semibold" style={{ color: '#9a8070' }}>
+            <Flag className="w-4 h-4" /> Report listing
+          </button>
+        )}
+
         {/* Owner actions */}
         {isOwner && !isSold && (
           <div className="space-y-2 pt-2">
@@ -773,6 +781,8 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
           </div>
         </div>
       )}
+
+      <ReportModal target={reportTarget} open={!!reportTarget} onClose={() => setReportTarget(null)} />
 
       {showEditReposition && (editImagePreview || primaryImageUrl) && (
         <ImageRepositioner

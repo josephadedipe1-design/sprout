@@ -4,10 +4,12 @@ import { useState } from 'react';
 import { Flag, X, Loader2, CheckCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
+import { sendNotificationEmail } from '@/lib/notifications';
 
 export type ReportTarget =
   | { type: 'post'; postId: string; userId?: string }
   | { type: 'message'; messageId: string; userId?: string }
+  | { type: 'listing'; listingId: string; userId?: string }
   | { type: 'user'; userId: string };
 
 interface ReportModalProps {
@@ -37,6 +39,7 @@ export default function ReportModal({ target, open, onClose }: ReportModalProps)
   const targetLabel =
     target.type === 'post' ? 'this post'
       : target.type === 'message' ? 'this message'
+      : target.type === 'listing' ? 'this listing'
       : 'this user';
 
   async function handleSubmit() {
@@ -56,6 +59,9 @@ export default function ReportModal({ target, open, onClose }: ReportModalProps)
     } else if (target.type === 'message') {
       row.message_id = target.messageId;
       if (target.userId) row.user_id = target.userId;
+    } else if (target.type === 'listing') {
+      row.reported_listing_id = target.listingId;
+      if (target.userId) row.user_id = target.userId;
     } else {
       row.user_id = target.userId;
     }
@@ -67,6 +73,15 @@ export default function ReportModal({ target, open, onClose }: ReportModalProps)
       setSubmitting(false);
       return;
     }
+
+    sendNotificationEmail({
+      type: 'report',
+      emailData: {
+        reason,
+        detail: details.trim() || '',
+        targetType: target?.type ?? 'content',
+      },
+    });
 
     setSubmitted(true);
     setSubmitting(false);

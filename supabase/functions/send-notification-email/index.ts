@@ -9,6 +9,7 @@ const corsHeaders = {
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const FROM_EMAIL = "Sprout <noreply@sprout-village.co.uk>";
+const REPORTS_EMAIL = "reports@sprout-village.co.uk";
 
 function htmlTemplate(title: string, preview: string, bodyContent: string): string {
   return `<!DOCTYPE html>
@@ -96,6 +97,21 @@ function buildEmailContent(type: string, data: Record<string, unknown>): { subje
       return { subject, html: htmlTemplate(subject, `${senderName} sent you a message`, body) };
     }
 
+    case "message_request": {
+      const senderName = (data.senderName as string) || "Someone";
+      const preview = (data.preview as string) || "";
+      const listingTitle = (data.listingTitle as string) || "";
+      const subject = listingTitle ? `${senderName} messaged you about "${listingTitle}"` : `${senderName} wants to message you`;
+      const body = `
+        <h1 style="font-size:20px;font-weight:700;color:#2a1f18;margin:0 0 12px 0;">${senderName} wants to message you${listingTitle ? ` about "${listingTitle}"` : ""}</h1>
+        <div style="background-color:#faf8f6;border-radius:12px;padding:16px 20px;margin:0 0 24px 0;">
+          <p style="font-size:15px;line-height:1.6;color:#5a4035;margin:0;">${preview}</p>
+        </div>
+        <p style="font-size:13px;color:#9a8070;margin:0 0 16px 0;">Accept their request to reply.</p>
+        <a href="${data.appUrl || "https://sprout-village.co.uk"}" style="display:inline-block;background-color:#7D3C1A;color:#ffffff;font-size:15px;font-weight:600;padding:14px 32px;border-radius:12px;text-decoration:none;">View request</a>`;
+      return { subject, html: htmlTemplate(subject, `${senderName} wants to message you`, body) };
+    }
+
     case "like": {
       const likerName = (data.likerName as string) || "Someone";
       const postPreview = (data.postPreview as string) || "your post";
@@ -136,17 +152,18 @@ function buildEmailContent(type: string, data: Record<string, unknown>): { subje
       return { subject, html: htmlTemplate(subject, `${requesterName} wants to connect`, body) };
     }
 
-    case "message_request": {
-      const senderName = (data.senderName as string) || "Someone";
-      const preview = (data.preview as string) || "";
-      const subject = `${senderName} sent you a message`;
+    case "report": {
+      const reason = (data.reason as string) || "unspecified";
+      const detail = (data.detail as string) || "";
+      const targetType = (data.targetType as string) || "content";
+      const subject = `New report: ${reason.replace(/_/g, " ")}`;
       const body = `
-        <h1 style="font-size:20px;font-weight:700;color:#2a1f18;margin:0 0 12px 0;">${senderName} sent you a message</h1>
-        <div style="background-color:#faf8f6;border-radius:12px;padding:16px 20px;margin:0 0 24px 0;">
-          <p style="font-size:15px;line-height:1.6;color:#5a4035;margin:0;">${preview}</p>
-        </div>
-        <a href="${data.appUrl || "https://sprout-village.co.uk"}" style="display:inline-block;background-color:#7D3C1A;color:#ffffff;font-size:15px;font-weight:600;padding:14px 32px;border-radius:12px;text-decoration:none;">Reply in Sprout</a>`;
-      return { subject, html: htmlTemplate(subject, `${senderName} sent you a message`, body) };
+        <h1 style="font-size:20px;font-weight:700;color:#2a1f18;margin:0 0 12px 0;">New report submitted</h1>
+        <p style="font-size:15px;line-height:1.6;color:#5a4035;margin:0 0 8px 0;"><strong>Reason:</strong> ${reason.replace(/_/g, " ")}</p>
+        <p style="font-size:15px;line-height:1.6;color:#5a4035;margin:0 0 16px 0;"><strong>Type:</strong> ${targetType}</p>
+        ${detail ? `<div style="background-color:#faf8f6;border-radius:12px;padding:16px 20px;margin:0 0 24px 0;"><p style="font-size:15px;line-height:1.6;color:#5a4035;margin:0;">${detail}</p></div>` : ""}
+        <a href="${data.appUrl || "https://sprout-village.co.uk"}" style="display:inline-block;background-color:#7D3C1A;color:#ffffff;font-size:15px;font-weight:600;padding:14px 32px;border-radius:12px;text-decoration:none;">View in Moderation</a>`;
+      return { subject, html: htmlTemplate(subject, "A new report needs review", body) };
     }
 
     default:
@@ -162,8 +179,8 @@ Deno.serve(async (req: Request) => {
   try {
     const { type, recipientUserId, emailData } = await req.json();
 
-    if (!type || !recipientUserId || !emailData) {
-      return new Response(JSON.stringify({ error: "Missing required fields: type, recipientUserId, emailData" }), {
+    if (!type || !emailData) {
+      return new Response(JSON.stringify({ error: "Missing required fields: type, emailData" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -172,6 +189,46 @@ Deno.serve(async (req: Request) => {
     if (!RESEND_API_KEY) {
       return new Response(JSON.stringify({ error: "RESEND_API_KEY not configured" }), {
         status: 503,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // "report" sends to a fixed moderation address — no recipient user lookup needed
+    if (type === "report") {
+      const { subject, html } = buildEmailContent(type, emailData);
+
+      const resendRes = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${RESEND_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: FROM_EMAIL,
+          to: [REPORTS_EMAIL],
+          subject,
+          html,
+        }),
+      });
+
+      if (!resendRes.ok) {
+        const errText = await resendRes.text();
+        return new Response(JSON.stringify({ error: "Resend API error", details: errText }), {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const result = await resendRes.json();
+      return new Response(JSON.stringify({ sent: true, id: result.id }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (!recipientUserId) {
+      return new Response(JSON.stringify({ error: "Missing required field: recipientUserId" }), {
+        status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

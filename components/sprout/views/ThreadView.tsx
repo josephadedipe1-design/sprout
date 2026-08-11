@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ArrowLeft, Heart, Send, MoreHorizontal, MapPin, Loader2, Flag, Trash2 } from 'lucide-react';
+import { ArrowLeft, Heart, Send, MoreHorizontal, MapPin, Loader2, Flag, Trash2, Pencil } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { sendNotificationEmail, truncatePreview } from '@/lib/notifications';
@@ -9,12 +9,15 @@ import type { DbProfile } from '@/lib/types';
 import { formatLocation, formatName } from '@/lib/utils';
 import { renderAnnouncementMarkdown } from '@/lib/announcement-markdown';
 import ReportModal, { type ReportTarget } from '@/components/sprout/ReportModal';
+import EditTextModal from '@/components/sprout/EditTextModal';
 
 interface Post {
   id: string;
   body: string;
   post_type: string;
   created_at: string;
+  edited_at: string | null;
+  author_id: string;
   profile: DbProfile | null;
   likes: number;
   liked: boolean;
@@ -24,6 +27,7 @@ interface Reply {
   id: string;
   body: string;
   created_at: string;
+  edited_at: string | null;
   author_id: string;
   profile: DbProfile | null;
 }
@@ -54,6 +58,8 @@ export default function ThreadView({ postId, onBack }: ThreadViewProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
+  const [editTarget, setEditTarget] = useState<{ type: 'post' | 'reply'; id: string; body: string } | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
 
   const loadThread = useCallback(async () => {
     if (!user) { setLoading(false); return; }
@@ -90,6 +96,8 @@ export default function ThreadView({ postId, onBack }: ThreadViewProps) {
         body: p.body,
         post_type: p.post_type,
         created_at: p.created_at,
+        edited_at: p.edited_at ?? null,
+        author_id: p.author_id,
         profile: profileMap[p.author_id] ?? null,
         likes: likeRes.data?.length ?? 0,
         liked: !!myLike.data,
@@ -101,6 +109,7 @@ export default function ThreadView({ postId, onBack }: ThreadViewProps) {
         id: r.id,
         body: r.body,
         created_at: r.created_at,
+        edited_at: r.edited_at ?? null,
         author_id: r.author_id,
         profile: profileMap[r.author_id] ?? null,
       }))
@@ -166,12 +175,27 @@ export default function ThreadView({ postId, onBack }: ThreadViewProps) {
         id: crypto.randomUUID(),
         body,
         created_at: new Date().toISOString(),
+        edited_at: null,
         author_id: user.id,
         profile: profile as unknown as DbProfile | null,
       }]);
       setReply('');
     }
     setSubmitting(false);
+  }
+
+  async function saveEdit(body: string) {
+    if (!editTarget || !user || !body || editSaving) return;
+    setEditSaving(true);
+    const editedAt = new Date().toISOString();
+    const table = editTarget.type === 'post' ? 'posts' : 'replies';
+    const { error } = await supabase.from(table).update({ body, edited_at: editedAt }).eq('id', editTarget.id).eq('author_id', user.id);
+    if (!error) {
+      if (editTarget.type === 'post') setPost(current => current ? { ...current, body, edited_at: editedAt } : current);
+      else setReplies(current => current.map(replyItem => replyItem.id === editTarget.id ? { ...replyItem, body, edited_at: editedAt } : replyItem));
+      setEditTarget(null);
+    }
+    setEditSaving(false);
   }
 
   const authorName = post ? (formatName(post.profile?.first_name ?? '', post.profile?.last_initial) || 'Community Member') : '';
@@ -222,7 +246,7 @@ export default function ThreadView({ postId, onBack }: ThreadViewProps) {
                     {post.profile?.postcode_district && (
                       <><MapPin className="w-3 h-3" />{formatLocation(post.profile.postcode_district)} · </>
                     )}
-                    {formatRelativeTime(post.created_at)}
+                    {formatRelativeTime(post.created_at)}{post.edited_at && ' (edited)'}
                   </div>
                 </div>
               </div>
@@ -239,26 +263,18 @@ export default function ThreadView({ postId, onBack }: ThreadViewProps) {
                     className="absolute right-0 top-8 z-20 rounded-xl shadow-lg border overflow-hidden"
                     style={{ background: 'white', borderColor: 'var(--border-color)', minWidth: 140 }}
                   >
-                    {post.profile?.id && post.profile.id !== user?.id ? (
-                      <button
-                        onClick={() => { setReportTarget({ type: 'post', postId: post.id, userId: post.profile?.id }); setMenuOpenId(null); }}
-                        className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-left transition-colors hover:bg-orange-50"
-                        style={{ color: '#7a6055' }}
-                      >
-                        <Flag className="w-3.5 h-3.5" />
-                        Report post
-                      </button>
+                    {post.profile?.id === user?.id ? (
+                      <>
+                        <button onClick={() => { setEditTarget({ type: 'post', id: post.id, body: post.body }); setMenuOpenId(null); }} className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-left hover:bg-orange-50" style={{ color: '#7a6055' }}>
+                          <Pencil className="w-3.5 h-3.5" /> Edit post
+                        </button>
+                        <button onClick={async () => { await supabase.from('posts').delete().eq('id', post.id); onBack(); }} className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-left hover:bg-red-50" style={{ color: '#E53E3E' }}>
+                          <Trash2 className="w-3.5 h-3.5" /> Delete post
+                        </button>
+                      </>
                     ) : (
-                      <button
-                        onClick={async () => {
-                          await supabase.from('posts').delete().eq('id', post.id);
-                          onBack();
-                        }}
-                        className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-left transition-colors hover:bg-red-50"
-                        style={{ color: '#E53E3E' }}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        Delete post
+                      <button onClick={() => { setReportTarget({ type: 'post', postId: post.id, userId: post.profile?.id }); setMenuOpenId(null); }} className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-left hover:bg-orange-50" style={{ color: '#7a6055' }}>
+                        <Flag className="w-3.5 h-3.5" /> Report post
                       </button>
                     )}
                   </div>
@@ -303,9 +319,8 @@ export default function ThreadView({ postId, onBack }: ThreadViewProps) {
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-sm font-semibold" style={{ color: '#2a1f18' }}>{name}</span>
                           <div className="flex items-center gap-2">
-                            <span className="text-xs" style={{ color: '#9a8070' }}>{formatRelativeTime(r.created_at)}</span>
-                            {r.author_id !== user?.id && (
-                              <div className="relative" onClick={(e) => e.stopPropagation()}>
+                            <span className="text-xs" style={{ color: '#9a8070' }}>{formatRelativeTime(r.created_at)}{r.edited_at && ' (edited)'}</span>
+                            <div className="relative" onClick={(e) => e.stopPropagation()}>
                                 <button
                                   onClick={() => setMenuOpenId(menuOpenId === r.id ? null : r.id)}
                                   className="w-6 h-6 rounded-full flex items-center justify-center transition-colors hover:bg-orange-50"
@@ -318,18 +333,18 @@ export default function ThreadView({ postId, onBack }: ThreadViewProps) {
                                     className="absolute right-0 top-7 z-20 rounded-xl shadow-lg border overflow-hidden"
                                     style={{ background: 'white', borderColor: 'var(--border-color)', minWidth: 140 }}
                                   >
-                                    <button
-                                      onClick={() => { setReportTarget({ type: 'message', messageId: r.id, userId: r.author_id }); setMenuOpenId(null); }}
-                                      className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-left transition-colors hover:bg-orange-50"
-                                      style={{ color: '#7a6055' }}
-                                    >
-                                      <Flag className="w-3.5 h-3.5" />
-                                      Report reply
-                                    </button>
+                                    {r.author_id === user?.id ? (
+                                      <button onClick={() => { setEditTarget({ type: 'reply', id: r.id, body: r.body }); setMenuOpenId(null); }} className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-left hover:bg-orange-50" style={{ color: '#7a6055' }}>
+                                        <Pencil className="w-3.5 h-3.5" /> Edit reply
+                                      </button>
+                                    ) : (
+                                      <button onClick={() => { setReportTarget({ type: 'message', messageId: r.id, userId: r.author_id }); setMenuOpenId(null); }} className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-left hover:bg-orange-50" style={{ color: '#7a6055' }}>
+                                        <Flag className="w-3.5 h-3.5" /> Report reply
+                                      </button>
+                                    )}
                                   </div>
                                 )}
                               </div>
-                            )}
                           </div>
                         </div>
                         <div className="text-sm leading-relaxed announcement-body" style={{ color: '#3a2820' }} dangerouslySetInnerHTML={{ __html: renderAnnouncementMarkdown(r.body) }} />
@@ -381,6 +396,7 @@ export default function ThreadView({ postId, onBack }: ThreadViewProps) {
         </div>
       </div>
       <ReportModal target={reportTarget} open={!!reportTarget} onClose={() => setReportTarget(null)} />
+      {editTarget && <EditTextModal title={editTarget.type === 'post' ? 'Edit post' : 'Edit reply'} initialText={editTarget.body} saving={editSaving} onClose={() => setEditTarget(null)} onSave={saveEdit} />}
     </div>
   );
 }

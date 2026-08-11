@@ -44,7 +44,7 @@ export default function TermsPage() {
             },
             {
               title: '6. Marketplace',
-              body: `Sprout provides a peer-to-peer marketplace for parents to buy, sell, and give away children's items. Sprout is not a party to any transaction, does not process or handle payments in any way, and accepts no liability for the quality, safety, legality, or condition of listed items, or for any payment, delivery, or dispute between users. All payment and exchange arrangements are made directly and independently between buyer and seller; Sprout has no involvement in and no responsibility for these arrangements. Users transact entirely at their own risk and are strongly encouraged to meet in safe, public locations, inspect items before payment, and use caution with any item involving child safety (e.g. car seats, cots, prams) — checking for recalls and safety standards before use.`,
+              body: `Sprout provides a peer-to-peer marketplace for parents to buy, sell, and give away children's items. Sprout is not a party to any transaction and accepts no liability for the quality, safety, or legality of listed items. Users transact at their own risk and are encouraged to meet in safe, public locations.`,
             },
             {
               title: '7. Service Availability',
@@ -60,7 +60,7 @@ export default function TermsPage() {
             },
             {
               title: '10. Contact',
-               body: `For questions about these Terms, contact us at hello@sprout-village.co.uk.`,
+              body: `For questions about these Terms, contact us at hello@sprout-village.co.uk.`,
             },
           ].map(({ title, body }) => (
             <section key={title}>

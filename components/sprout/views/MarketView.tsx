@@ -82,6 +82,7 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
     const { data, error } = await supabase
       .from('listings')
       .select('*')
+      .eq('status', 'active')
       .order('created_at', { ascending: false })
       .limit(200);
 
