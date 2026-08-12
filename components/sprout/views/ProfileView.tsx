@@ -16,6 +16,7 @@ interface ActivityItem {
   created_at: string;
   text: string;
   reactions: number;
+  sold?: boolean;
 }
 
 interface Stats {
@@ -91,12 +92,15 @@ export default function ProfileView({ onEditProfile, onSettings, onOpenThread }:
     if (!user) return;
 
     async function loadStats() {
+      const soldCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
       const [postsRes, connectionsRes, listingsRes] = await Promise.all([
         supabase.from('posts').select('id', { count: 'exact', head: true }).eq('author_id', user!.id),
         supabase.from('match_requests').select('id', { count: 'exact', head: true })
           .or(`from_user_id.eq.${user!.id},to_user_id.eq.${user!.id}`)
           .eq('status', 'connected'),
-        supabase.from('listings').select('id', { count: 'exact', head: true }).eq('seller_id', user!.id),
+        supabase.from('listings').select('id', { count: 'exact', head: true })
+          .eq('seller_id', user!.id)
+          .or(`status.eq.active,and(status.eq.sold,sold_at.gt.${soldCutoff})`),
       ]);
       setStats({
         posts: postsRes.count ?? 0,
@@ -106,9 +110,12 @@ export default function ProfileView({ onEditProfile, onSettings, onOpenThread }:
     }
 
     async function loadActivity() {
+      const soldCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
       const [postsRes, listingsRes] = await Promise.all([
         supabase.from('posts').select('id, body, created_at').eq('author_id', user!.id).order('created_at', { ascending: false }).limit(5),
-        supabase.from('listings').select('id, title, price_pence, created_at').eq('seller_id', user!.id).order('created_at', { ascending: false }).limit(3),
+        supabase.from('listings').select('id, title, price_pence, created_at, status, sold_at').eq('seller_id', user!.id)
+          .or(`status.eq.active,and(status.eq.sold,sold_at.gt.${soldCutoff})`)
+          .order('created_at', { ascending: false }).limit(3),
       ]);
 
       const items: ActivityItem[] = [];
@@ -129,6 +136,7 @@ export default function ProfileView({ onEditProfile, onSettings, onOpenThread }:
         created_at: l.created_at,
         text: `Listed "${l.title}" on the Market${l.price_pence > 0 ? ` for £${(l.price_pence / 100).toFixed(2)}` : ' for free'}.`,
         reactions: 0,
+        sold: l.status === 'sold',
       }));
 
       items.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -400,6 +408,7 @@ export default function ProfileView({ onEditProfile, onSettings, onOpenThread }:
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-xs font-semibold" style={{ color: meta.color }}>{meta.label}</span>
+                        {item.sold && <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#374151', color: 'white' }}>Sold</span>}
                         <span className="text-xs" style={{ color: '#c4a090' }}>{item.time}</span>
                       </div>
                       <p className="text-sm leading-relaxed" style={{ color: '#3a2820' }}>{item.text}</p>

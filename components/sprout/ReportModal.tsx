@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { Flag, X, Loader2, CheckCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
-import { sendNotificationEmail } from '@/lib/notifications';
 
 export type ReportTarget =
   | { type: 'post'; postId: string; userId?: string }
@@ -73,15 +72,6 @@ export default function ReportModal({ target, open, onClose }: ReportModalProps)
       setSubmitting(false);
       return;
     }
-
-    sendNotificationEmail({
-      type: 'report',
-      emailData: {
-        reason,
-        detail: details.trim() || '',
-        targetType: target?.type ?? 'content',
-      },
-    });
 
     setSubmitted(true);
     setSubmitting(false);

@@ -66,6 +66,7 @@ export interface DbListing {
   category: string;
   postcode_district: string;
   status: string;
+  sold_at: string | null;
   offers_welcome: boolean;
   created_at: string;
   profiles?: DbProfile | null;

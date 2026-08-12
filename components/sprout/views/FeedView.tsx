@@ -215,10 +215,11 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
     setDbPosts(mapped);
 
     // Fetch active listings for the local area (10-mile radius)
+    const soldCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
     const { data: listingsData } = await supabase
       .from('listings')
       .select('*')
-      .eq('status', 'active')
+      .or(`status.eq.active,and(status.eq.sold,sold_at.gt.${soldCutoff})`)
       .order('created_at', { ascending: false })
       .limit(50);
 

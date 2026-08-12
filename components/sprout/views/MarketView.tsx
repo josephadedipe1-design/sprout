@@ -79,10 +79,11 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
       setRadius(savedRadius);
     }
 
+    const soldCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
     const { data, error } = await supabase
       .from('listings')
       .select('*')
-      .eq('status', 'active')
+      .or(`status.eq.active,and(status.eq.sold,sold_at.gt.${soldCutoff})`)
       .order('created_at', { ascending: false })
       .limit(200);
 
@@ -197,7 +198,7 @@ export default function MarketView({ onOpenListing, triggerNewListing, onNewList
   }
 
   async function markSold(id: string) {
-    await supabase.from('listings').update({ status: 'sold' }).eq('id', id);
+    await supabase.from('listings').update({ status: 'sold', sold_at: new Date().toISOString() }).eq('id', id);
     setDbListings(prev => prev.map(l => l.id === id ? { ...l, sold: true } : l));
   }
 

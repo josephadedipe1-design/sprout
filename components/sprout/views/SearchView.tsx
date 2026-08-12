@@ -22,6 +22,7 @@ interface ListingResult {
   price_pence: number;
   postcode_district: string;
   image_url: string;
+  status: string;
 }
 
 interface SearchResults {
@@ -69,9 +70,9 @@ export default function SearchView({ onBack }: SearchViewProps) {
         .limit(5),
       supabase
         .from('listings')
-        .select('id, title, price_pence, postcode_district, image_url')
+        .select('id, title, price_pence, postcode_district, image_url, status')
         .or(`title.ilike.${term},description.ilike.${term}`)
-        .eq('status', 'active')
+        .or(`status.eq.active,and(status.eq.sold,sold_at.gt.${new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()})`)
         .limit(3),
     ]);
     setResults({
@@ -244,8 +245,9 @@ export default function SearchView({ onBack }: SearchViewProps) {
                       <div className="w-14 h-14 rounded-xl flex-shrink-0" style={{ background: '#f0ece5' }} />
                     )}
                     <div>
-                      <p className="text-sm font-semibold" style={{ color: '#2a1f18' }}>{l.title}</p>
-                      <p className="text-base font-bold" style={{ color: 'var(--brand)' }}>{l.price_pence === 0 ? 'Free' : `£${(l.price_pence / 100).toFixed(2)}`}</p>
+                      <p className="text-sm font-semibold" style={{ color: l.status === 'sold' ? '#9a8070' : '#2a1f18' }}>{l.title}</p>
+                      <p className="text-base font-bold" style={{ color: l.status === 'sold' ? '#9a8070' : 'var(--brand)' }}>{l.price_pence === 0 ? 'Free' : `£${(l.price_pence / 100).toFixed(2)}`}</p>
+                      {l.status === 'sold' && <span className="inline-block text-xs font-bold px-2 py-0.5 rounded-full mt-1" style={{ background: '#374151', color: 'white' }}>Sold</span>}
                       {l.postcode_district && (
                         <p className="text-xs flex items-center gap-1" style={{ color: '#9a8070' }}>
                           <MapPin className="w-3 h-3" />{formatLocation(l.postcode_district)}

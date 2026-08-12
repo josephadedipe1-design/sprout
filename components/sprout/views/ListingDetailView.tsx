@@ -126,8 +126,9 @@ export default function ListingDetailView({ listingId, onBack, onMessage }: List
 
   async function markSold() {
     if (!listing) return;
-    await supabase.from('listings').update({ status: 'sold' }).eq('id', listing.id);
-    setListing(l => l ? { ...l, status: 'sold' } : l);
+    const soldAt = new Date().toISOString();
+    await supabase.from('listings').update({ status: 'sold', sold_at: soldAt }).eq('id', listing.id);
+    setListing(l => l ? { ...l, status: 'sold', sold_at: soldAt } : l);
   }
 
   async function handleDelete() {
