@@ -8,6 +8,7 @@ import {
   Users, Plus, Eye, EyeOff, Upload, Loader2, Star, Sun, Smile, MailCheck, Mail,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { sendNotificationEmail } from '@/lib/notifications';
 
 const PENDING_PROFILE_KEY = 'sprout_pending_profile';
 
@@ -221,6 +222,7 @@ export default function SignupPage() {
       });
       if (insertError) throw insertError;
       setWaitlistSubmitted(true);
+      sendNotificationEmail({ type: 'waitlist', emailData: { email: waitlistEmail.trim(), postcode } });
     } catch {
       setWaitlistError('Something went wrong. Please try again.');
     } finally {
