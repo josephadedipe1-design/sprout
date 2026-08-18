@@ -13,7 +13,7 @@ const FEATURES = [
   {
     Icon: Users,
     title: 'Connect with local parents',
-    desc: 'Meet families within 2 miles of you — at exactly the same stage.',
+    desc: 'Meet families within 10 miles of you — at exactly the same stage.',
   },
   {
     Icon: MessageCircle,
