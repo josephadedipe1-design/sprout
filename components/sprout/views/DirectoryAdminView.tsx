@@ -444,10 +444,10 @@ export default function DirectoryAdminView({ onBack }: DirectoryAdminViewProps) 
             <div key={listing.id} className="card-sprout p-4">
               <div className="flex items-start gap-3">
                 {listing.image_url ? (
-                  <img src={listing.image_url} alt={listing.business_name} className="w-16 h-16 rounded-xl object-cover flex-shrink-0" style={{ objectPosition: objectPosition(50, 50) }} />
+                  <img src={listing.image_url} alt={listing.business_name} className="w-12 h-12 rounded-full object-cover flex-shrink-0" style={{ objectPosition: objectPosition(50, 50) }} />
                 ) : (
-                  <div className="w-16 h-16 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--surface)' }}>
-                    <BookOpen className="w-7 h-7" style={{ color: '#c4a090' }} />
+                  <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'var(--surface)' }}>
+                    <BookOpen className="w-6 h-6" style={{ color: '#c4a090' }} />
                   </div>
                 )}
                 <div className="flex-1 min-w-0">

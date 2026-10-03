@@ -156,72 +156,72 @@ export default function DirectoryView({ }: DirectoryViewProps) {
           {visible.map((listing) => {
             const catStyle = categoryStyle(listing.category);
             return (
-              <article key={listing.id} className="card-sprout overflow-hidden">
-                {listing.image_url ? (
-                  <img
-                    src={listing.image_url}
-                    alt={listing.business_name}
-                    className="w-full h-36 object-cover"
-                    style={{ objectPosition: objectPosition(50, 50) }}
-                  />
-                ) : (
-                  <div className="w-full h-28 flex items-center justify-center" style={{ background: catStyle.bg }}>
-                    <BookOpen className="w-10 h-10" style={{ color: catStyle.color, opacity: 0.6 }} />
-                  </div>
-                )}
-                <div className="p-4">
-                  <div className="flex items-start justify-between gap-2 mb-2">
+              <article key={listing.id} className="card-sprout p-4">
+                <div className="flex items-start gap-3 mb-2">
+                  {listing.image_url ? (
+                    <img
+                      src={listing.image_url}
+                      alt={listing.business_name}
+                      className="w-12 h-12 rounded-full object-cover flex-shrink-0"
+                      style={{ objectPosition: objectPosition(50, 50) }}
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: catStyle.bg }}>
+                      <BookOpen className="w-6 h-6" style={{ color: catStyle.color, opacity: 0.7 }} />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <h3 className="text-base font-bold" style={{ color: '#2a1f18' }}>{listing.business_name}</h3>
+                      <h3 className="text-base font-bold truncate" style={{ color: '#2a1f18' }}>{listing.business_name}</h3>
                       {listing.verified && (
                         <BadgeCheck className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--brand)' }} />
                       )}
                     </div>
                     {listing.featured && (
-                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full mt-1 inline-block" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>
                         Featured
                       </span>
                     )}
                   </div>
+                </div>
 
-                  <span className="inline-block text-xs font-medium px-2.5 py-1 rounded-full mb-2.5" style={{ background: catStyle.bg, color: catStyle.color }}>
-                    {categoryLabel(listing.category)}
-                  </span>
+                <span className="inline-block text-xs font-medium px-2.5 py-1 rounded-full mb-2.5" style={{ background: catStyle.bg, color: catStyle.color }}>
+                  {categoryLabel(listing.category)}
+                </span>
 
-                  {listing.description && (
-                    <p className="text-sm leading-relaxed mb-3" style={{ color: '#5a4035', lineHeight: 1.6 }}>
-                      {listing.description}
-                    </p>
+                {listing.description && (
+                  <p className="text-sm leading-relaxed mb-3" style={{ color: '#5a4035', lineHeight: 1.6 }}>
+                    {listing.description}
+                  </p>
+                )}
+
+                <div className="flex items-center gap-1 text-xs mb-3" style={{ color: '#9a8070' }}>
+                  <MapPin className="w-3 h-3" />
+                  {formatLocation(listing.postcode_district)}
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  {listing.phone && (
+                    <a href={`tel:${listing.phone}`} className="flex items-center gap-1.5 text-sm font-medium transition-opacity hover:opacity-70" style={{ color: 'var(--brand)' }}>
+                      <Phone className="w-3.5 h-3.5" /> Call
+                    </a>
                   )}
-
-                  <div className="flex items-center gap-1 text-xs mb-3" style={{ color: '#9a8070' }}>
-                    <MapPin className="w-3 h-3" />
-                    {formatLocation(listing.postcode_district)}
-                  </div>
-
-                  <div className="flex flex-wrap gap-3">
-                    {listing.phone && (
-                      <a href={`tel:${listing.phone}`} className="flex items-center gap-1.5 text-sm font-medium transition-opacity hover:opacity-70" style={{ color: 'var(--brand)' }}>
-                        <Phone className="w-3.5 h-3.5" /> Call
-                      </a>
-                    )}
-                    {listing.email && (
-                      <a href={`mailto:${listing.email}`} className="flex items-center gap-1.5 text-sm font-medium transition-opacity hover:opacity-70" style={{ color: 'var(--brand)' }}>
-                        <Mail className="w-3.5 h-3.5" /> Email
-                      </a>
-                    )}
-                    {listing.website && (
-                      <a
-                        href={listing.website.startsWith('http') ? listing.website : `https://${listing.website}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 text-sm font-medium transition-opacity hover:opacity-70"
-                        style={{ color: 'var(--brand)' }}
-                      >
-                        <Globe className="w-3.5 h-3.5" /> Website
-                      </a>
-                    )}
-                  </div>
+                  {listing.email && (
+                    <a href={`mailto:${listing.email}`} className="flex items-center gap-1.5 text-sm font-medium transition-opacity hover:opacity-70" style={{ color: 'var(--brand)' }}>
+                      <Mail className="w-3.5 h-3.5" /> Email
+                    </a>
+                  )}
+                  {listing.website && (
+                    <a
+                      href={listing.website.startsWith('http') ? listing.website : `https://${listing.website}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 text-sm font-medium transition-opacity hover:opacity-70"
+                      style={{ color: 'var(--brand)' }}
+                    >
+                      <Globe className="w-3.5 h-3.5" /> Website
+                    </a>
+                  )}
                 </div>
               </article>
             );
