@@ -68,6 +68,7 @@ const TYPE_COLORS: Record<string, { bg: string; text: string; label: string }> =
   question: { bg: '#FFF5EF', text: '#7D3C1A', label: 'Question' },
   support:  { bg: '#EFF4FF', text: '#2563EB', label: 'Support' },
   meetup:   { bg: '#ECFDF5', text: '#059669', label: 'Meetup' },
+  general:  { bg: '#F0FDFA', text: '#0F766E', label: 'General' },
   market:   { bg: '#FFF7ED', text: '#D97706', label: 'Market' },
   tip:      { bg: '#F0FDF4', text: '#16A34A', label: 'Tip' },
   listing:  { bg: '#FFF7ED', text: '#D97706', label: 'Market' },
@@ -461,7 +462,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
     copyInvite();
   }
 
-  const filters = ['All', 'Questions', 'Meetups', 'Market', 'Support'];
+  const filters = ['All', 'General', 'Support', 'Market', 'Meetups'];
 
   // Build a unified feed combining posts and listings, sorted by created_at desc
   const feedItems: FeedItem[] = (() => {
@@ -469,7 +470,7 @@ export default function FeedView({ onOpenThread, onNewPost, onGoToMarket, onOpen
       return feedListings.map(l => ({ kind: 'listing' as const, data: l }));
     }
     if (activeFilter !== 'All') {
-      const typeMap: Record<string, string> = { Questions: 'question', Support: 'support', Meetups: 'meetup' };
+      const typeMap: Record<string, string> = { Support: 'support', Meetups: 'meetup', General: 'general' };
       return dbPosts
         .filter(p => p.post_type === typeMap[activeFilter])
         .map(p => ({ kind: 'post' as const, data: p }));

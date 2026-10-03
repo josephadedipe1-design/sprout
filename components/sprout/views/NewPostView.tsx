@@ -19,6 +19,7 @@ const POST_TYPES = [
   { id: 'question', label: 'Question', desc: 'Ask the community for advice', color: '#7D3C1A', bg: '#FFF5EF' },
   { id: 'support', label: 'Support', desc: 'Share and receive kindness', color: '#2563EB', bg: '#EFF4FF' },
   { id: 'meetup', label: 'Meetup', desc: 'Organize a local playdate or event', color: '#059669', bg: '#ECFDF5' },
+  { id: 'general', label: 'General', desc: 'Introduce yourself or share anything else', color: '#0F766E', bg: '#F0FDFA' },
   { id: 'listing', label: 'List in Market', desc: 'Sell or give away items in the Marketplace', color: '#D97706', bg: '#FFF7ED' },
 ];
 
@@ -197,6 +198,7 @@ export default function NewPostView({ onBack, onPublish, onListInMarket }: NewPo
                 : postType === 'support' ? "Share what you're going through. This is a safe space…"
                 : postType === 'tip' ? "Share your tip or parenting win…"
                 : postType === 'meetup' ? "Describe your event, date, time, and location…"
+                : postType === 'general' ? "Introduce yourself, share a story, or start a chat…"
                 : "Describe what you're selling or giving away…"
               }
               value={content}

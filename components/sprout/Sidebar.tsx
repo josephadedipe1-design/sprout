@@ -1,13 +1,13 @@
 'use client';
 
-import { Leaf, Home, MessageCircle, Users, Bell, User, Search, Plus, LogOut, ShoppingBag, Megaphone, Shield } from 'lucide-react';
+import { Leaf, Home, MessageCircle, Users, Bell, User, Search, Plus, LogOut, ShoppingBag, Megaphone, Shield, BookOpen } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { formatLocation, formatName, objectPosition } from '@/lib/utils';
 
 const ADMIN_ID = '4848415f-2bbe-409a-8443-eb925b0b88e8';
 
-type View = 'feed' | 'market' | 'messages' | 'matching' | 'notifications' | 'profile' | 'search';
+type View = 'feed' | 'market' | 'directory' | 'messages' | 'matching' | 'notifications' | 'profile' | 'search';
 
 interface SidebarProps {
   active: View;
@@ -15,6 +15,7 @@ interface SidebarProps {
   onNewPost?: () => void;
   onBroadcast?: () => void;
   onModeration?: () => void;
+  onDirectoryAdmin?: () => void;
   hasUnread?: boolean;
   unreadMessages?: number;
   hasNearbyJoinNotif?: boolean;
@@ -24,13 +25,14 @@ interface SidebarProps {
 const NAV = [
   { id: 'feed',          icon: Home,          label: 'Feed' },
   { id: 'market',        icon: ShoppingBag,   label: 'Market' },
+  { id: 'directory',     icon: BookOpen,      label: 'Directory' },
   { id: 'matching',      icon: Users,         label: 'MyVillage' },
   { id: 'messages',      icon: MessageCircle, label: 'Messages' },
   { id: 'notifications', icon: Bell,          label: 'Notifications' },
   { id: 'profile',       icon: User,          label: 'Profile' },
 ] as const;
 
-export default function Sidebar({ active, onNav, onNewPost, onBroadcast, onModeration, hasUnread = false, unreadMessages = 0, hasNearbyJoinNotif = false, hasPendingReports = false }: SidebarProps) {
+export default function Sidebar({ active, onNav, onNewPost, onBroadcast, onModeration, onDirectoryAdmin, hasUnread = false, unreadMessages = 0, hasNearbyJoinNotif = false, hasPendingReports = false }: SidebarProps) {
   const { profile, signOut, user, loading, profileSetupInProgress } = useAuth();
   const router = useRouter();
   const isAdmin = user?.id === ADMIN_ID;
@@ -132,6 +134,15 @@ export default function Sidebar({ active, onNav, onNewPost, onBroadcast, onModer
                 style={{ background: '#E53E3E' }}
               />
             )}
+          </button>
+        )}
+        {isAdmin && onDirectoryAdmin && (
+          <button
+            onClick={onDirectoryAdmin}
+            className="sidebar-link w-full"
+          >
+            <BookOpen className="w-5 h-5 flex-shrink-0" />
+            Directory Admin
           </button>
         )}
       </nav>

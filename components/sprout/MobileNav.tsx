@@ -1,8 +1,8 @@
 'use client';
 
-import { Home, MessageCircle, Users, Bell, User, ShoppingBag } from 'lucide-react';
+import { Home, MessageCircle, Users, Bell, User, ShoppingBag, BookOpen } from 'lucide-react';
 
-type View = 'feed' | 'market' | 'messages' | 'matching' | 'notifications' | 'profile' | 'search';
+type View = 'feed' | 'market' | 'directory' | 'messages' | 'matching' | 'notifications' | 'profile' | 'search';
 
 interface MobileNavProps {
   active: View;
@@ -15,6 +15,7 @@ interface MobileNavProps {
 const NAV = [
   { id: 'feed',          icon: Home,          label: 'Feed' },
   { id: 'market',        icon: ShoppingBag,   label: 'Market' },
+  { id: 'directory',     icon: BookOpen,      label: 'Directory' },
   { id: 'matching',      icon: Users,         label: 'Village' },
   { id: 'messages',      icon: MessageCircle, label: 'Messages' },
   { id: 'notifications', icon: Bell,          label: 'Updates' },

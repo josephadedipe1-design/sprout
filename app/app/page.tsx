@@ -20,13 +20,15 @@ import WelcomeView from '@/components/sprout/views/WelcomeView';
 import SettingsView from '@/components/sprout/views/SettingsView';
 import BroadcastView from '@/components/sprout/views/BroadcastView';
 import ModerationView from '@/components/sprout/views/ModerationView';
+import DirectoryView from '@/components/sprout/views/DirectoryView';
+import DirectoryAdminView from '@/components/sprout/views/DirectoryAdminView';
 import { Profile } from '@/lib/profiles';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { Leaf, ShieldBan } from 'lucide-react';
 import type { ListingSnap } from '@/components/sprout/views/ListingDetailView';
 
-type MainView = 'feed' | 'market' | 'messages' | 'matching' | 'notifications' | 'profile' | 'search';
+type MainView = 'feed' | 'market' | 'directory' | 'messages' | 'matching' | 'notifications' | 'profile' | 'search';
 type SubView =
   | { type: 'thread'; postId: string }
   | { type: 'newpost' }
@@ -35,6 +37,7 @@ type SubView =
   | { type: 'settings' }
   | { type: 'broadcast' }
   | { type: 'moderation' }
+  | { type: 'directoryadmin' }
   | { type: 'publicprofile'; profile: Profile; connected: boolean; pendingRequest?: boolean }
   | null;
 
@@ -398,6 +401,9 @@ function AppContent() {
     if (subView?.type === 'moderation') {
       return <ModerationView onBack={() => setSubView(null)} />;
     }
+    if (subView?.type === 'directoryadmin') {
+      return <DirectoryAdminView onBack={() => setSubView(null)} />;
+    }
     if (subView?.type === 'publicprofile') {
       return (
         <PublicProfileView
@@ -428,6 +434,8 @@ function AppContent() {
         );
       case 'market':
         return <MarketView onOpenListing={(id) => setSubView({ type: 'listing', listingId: id })} triggerNewListing={marketTrigger} onNewListingTriggered={() => setMarketTrigger(false)} triggerOpenListingId={marketOpenListingId} onTriggerOpenListingHandled={() => setMarketOpenListingId(null)} />;
+      case 'directory':
+        return <DirectoryView />;
       case 'messages':
         return <MessagesView openWithUserId={messageWithUserId} onConversationOpened={() => { setMessageWithUserId(null); setMessageListing(null); }} messageListing={messageListing} onActiveChatChange={setMobileChatActive} />;
       case 'matching':
@@ -471,6 +479,7 @@ function AppContent() {
         onNewPost={() => setSubView({ type: 'newpost' })}
         onBroadcast={() => setSubView({ type: 'broadcast' })}
         onModeration={openModeration}
+        onDirectoryAdmin={() => setSubView({ type: 'directoryadmin' })}
         hasUnread={hasUnread}
         unreadMessages={unreadMessages}
         hasNearbyJoinNotif={hasNearbyJoinNotif}

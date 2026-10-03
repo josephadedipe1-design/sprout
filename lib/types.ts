@@ -112,3 +112,22 @@ export interface DbListingImage {
   position_y?: number;
   created_at?: string;
 }
+
+export interface DbServiceListing {
+  id: string;
+  business_name: string;
+  category: string;
+  description: string;
+  phone: string | null;
+  email: string | null;
+  website: string | null;
+  postcode_district: string;
+  lat: number | null;
+  lng: number | null;
+  image_url: string | null;
+  verified: boolean;
+  featured: boolean;
+  status: string;
+  created_at: string;
+  created_by: string | null;
+}
